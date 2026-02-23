@@ -1,20 +1,25 @@
-### How to setup on your machine
-for Linux/Mac machine 
+Prerequisites: Conda is required for this project. Please ensure it is installed before proceeding.
+### Setup
+For Linux/Mac
 ```
 cd jersey-number-pipeline
 source SetupEnv.sh
 ```
-for Windows machine
+For Windows:
 ```
 cd jersey-number-pipeline
 SetupEnv.bat
 ```
-these scripts will download dataset, install dependencies and setup repo automatically
+These scripts will download dataset, install dependencies and configure the repository. 
 
-after setup finished, run test on dataset
-```commandline
+Once setup is complete, run inference on the test set:
+```
 python3 main.py SoccerNet test
 ```
+### Tips
+
+- setup.py manages the conda virtual environments. If any modules are missing, you can refer to it and install them manually into the appropriate conda environment.
+- Use the pipeline action in main.py to resume from a specific step rather than rerunning the entire pipeline from scratch.
 
 # A General Framework for Jersey Number Recognition in Sports
 Code, data, and model weights for paper  [A General Framework for Jersey Number Recognition in Sports](https://openaccess.thecvf.com/content/CVPR2024W/CVsports/papers/Koshkina_A_General_Framework_for_Jersey_Number_Recognition_in_Sports_Video_CVPRW_2024_paper.pdf) (Maria Koshkina, James H. Elder).
