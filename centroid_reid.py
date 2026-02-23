@@ -35,32 +35,45 @@ def get_specs_from_version(model_version):
     conf, weights = str(conf), str(weights)
     return conf, weights
 
-def generate_features(input_folder, output_folder, model_version='res50_market'):
+def generate_features(input_folder, output_folder, model_version='res50_market', b_overwrite_cache=False):
+    print(f"generate_features() input_folder={input_folder}, output_folder={output_folder}")
     # load model
     CONFIG_FILE, MODEL_FILE = get_specs_from_version(model_version)
     cfg.merge_from_file(CONFIG_FILE)
     opts = ["MODEL.PRETRAIN_PATH", MODEL_FILE, "MODEL.PRETRAINED", True, "TEST.ONLY_TEST", True, "MODEL.RESUME_TRAINING", False]
     cfg.merge_from_list(opts)
-    
+    model_path = cfg.MODEL.PRETRAIN_PATH
+    print(f"generate_features() Ready to loading from {model_path}, cwd {os.getcwd()}")
+    model_path = model_path.replace('//', '/')
+    print(f"generate_features() Loading from {model_path}, cwd {os.getcwd()}")
+
     use_cuda = True if torch.cuda.is_available() and cfg.GPU_IDS else False
-    model = CTLModel.load_from_checkpoint(cfg.MODEL.PRETRAIN_PATH, cfg=cfg)
+    model = CTLModel.load_from_checkpoint(model_path, cfg=cfg)
 
     # print("Loading from " + MODEL_FILE)
     if use_cuda:
         model.to('cuda')
         print("using GPU")
+    else:
+        print("using CPU")
     model.eval()
-
+    print(f'centroid_reid: generate_features() evaluation completed!')
     tracks = os.listdir(input_folder)
     transforms_base = ReidTransforms(cfg)
     val_transforms = transforms_base.build_transforms(is_train=False)
-
+    print(f'centroid_reid: generate_features() start to generate features...')
     for track in tqdm(tracks):
         features = []
         track_path = os.path.join(input_folder, track)
-        images = os.listdir(track_path)
+        if not os.path.isdir(track_path):
+            continue
         output_file = os.path.join(output_folder, f"{track}_features.npy")
+        if os.path.exists(output_file) and not b_overwrite_cache:
+            continue
+        images = os.listdir(track_path)
         for img_path in images:
+            if img_path.endswith('.DS_Store'):
+                continue
             img = cv2.imread(os.path.join(track_path, img_path))
             input_img = Image.fromarray(img)
             input_img = torch.stack([val_transforms(input_img)])
@@ -71,6 +84,7 @@ def generate_features(input_folder, output_folder, model_version='res50_market')
 
         np_feat = np.array(features)
         with open(output_file, 'wb') as f:
+            # print(f'generate_features() Writing {output_file}.')
             np.save(f, np_feat)
 
 
@@ -82,7 +96,7 @@ if __name__ == "__main__":
 
     #create if does not exist
     Path(args.output_folder).mkdir(parents=True, exist_ok=True)
-
+    print(f'centroid_reid: main() tracklets_folder={args.tracklets_folder}, output_folder={args.output_folder}')
     generate_features(args.tracklets_folder, args.output_folder)
 
 

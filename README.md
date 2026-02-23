@@ -1,3 +1,21 @@
+### How to setup on your machine
+for Linux/Mac machine 
+```
+cd jersey-number-pipeline
+source SetupEnv.sh
+```
+for Windows machine
+```
+cd jersey-number-pipeline
+SetupEnv.bat
+```
+these scripts will download dataset, install dependencies and setup repo automatically
+
+after setup finished, run test on dataset
+```commandline
+python3 main.py SoccerNet test
+```
+
 # A General Framework for Jersey Number Recognition in Sports
 Code, data, and model weights for paper  [A General Framework for Jersey Number Recognition in Sports](https://openaccess.thecvf.com/content/CVPR2024W/CVsports/papers/Koshkina_A_General_Framework_for_Jersey_Number_Recognition_in_Sports_Video_CVPRW_2024_paper.pdf) (Maria Koshkina, James H. Elder).
 

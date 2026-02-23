@@ -36,6 +36,76 @@ WIDTH_MIN = 30
 
 bias_for_digits = [0.06, 0.094, 0.094, 0.094, 0.094, 0.094, 0.094, 0.094, 0.094, 0.094, 0.094]
 
+import subprocess
+import sys
+
+def copy_folder_contents(src, dst):
+    if not os.path.exists(dst):
+        os.makedirs(dst)
+
+    for item in os.listdir(src):
+        src_item = os.path.join(src, item)
+        dst_item = os.path.join(dst, item)
+
+        if os.path.isfile(src_item):
+            shutil.copy2(src_item, dst_item)
+        elif os.path.isdir(src_item):
+            shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
+
+def execute_command(command):
+    """
+    Execute a command and display output in real-time, similar to os.system
+
+    Args:
+        command: Command to execute (string or list of strings)
+
+    Returns:
+        int: Return code from the command
+    """
+    print(f'Running command: {command}')
+    # Create process with pipe for stdout and stderr
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=isinstance(command, str),
+        universal_newlines=True,
+        bufsize=1
+    )
+
+    # Function to handle output stream
+    def handle_stream(stream):
+        for line in stream:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+
+    # Read stdout and stderr simultaneously
+    while True:
+        # Check stdout
+        stdout_line = process.stdout.readline()
+        if stdout_line:
+            sys.stdout.write(stdout_line)
+            sys.stdout.flush()
+
+        # Check stderr
+        stderr_line = process.stderr.readline()
+        if stderr_line:
+            sys.stderr.write(stderr_line)
+            sys.stderr.flush()
+
+        # Check if process has finished
+        if process.poll() is not None:
+            # Get remaining output
+            for line in process.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+            for line in process.stderr:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+            break
+
+    return process.returncode
+
 # Generate image JSON COCO format for ViTPose to consume
 def generate_json(file_names, json_file_path):
     img_id = 0
@@ -513,12 +583,17 @@ def identify_soccer_balls(image_dir, soccer_ball_list):
     tracklets = os.listdir(image_dir)
     for track in tqdm(tracklets):
         track_path = os.path.join(image_dir, track)
+        if track_path.endswith('.DS_Store'):
+            continue
         image_names = os.listdir(track_path)
+        image_names = [item for item in image_names if not item.startswith(".DS_Store")]
         sample = len(image_names) if len(image_names) < 10 else 10
         imgs = np.random.choice(image_names, size=sample, replace=False)
         width_list = []
         height_list = []
         for img_name in imgs:
+            if img_name.endswith('.DS_Store'):
+                continue
             img_path = os.path.join(track_path, img_name)
             img = cv2.imread(img_path)
             h, w = img.shape[:2]
@@ -800,6 +875,46 @@ def generate_crops_based(source, target, splits):
     for split in splits:
         print(f"Processing {split}")
         generate_crops_for_split(source, target, split)
+
+
+import time
+import json
+from datetime import datetime
+
+class SimpleTimeRecorder:
+    def __init__(self, task_name, json_file="timing_logs.json"):
+        self.task_name = task_name
+        self.json_file = json_file
+        self.start_time = None
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        end_time = time.time()
+        elapsed_time = end_time - self.start_time
+        print(f"Task '{self.task_name}' took: {elapsed_time:.4f} s")
+
+        log_entry = {
+            "task_name": self.task_name,
+            "start_time": datetime.fromtimestamp(self.start_time).isoformat(),
+            "elapsed_time": elapsed_time
+        }
+
+        self.write_log(log_entry)
+
+    def write_log(self, log_entry):
+        try:
+            with open(self.json_file, "r") as f:
+                logs = json.load(f)
+        except FileNotFoundError:
+            logs = []
+
+        logs.append(log_entry)
+
+        with open(self.json_file, "w") as f:
+            json.dump(logs, f, indent=4)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
