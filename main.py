@@ -7,6 +7,7 @@ import helpers
 from tqdm import tqdm
 import configuration as config
 from pathlib import Path
+from helpers import SimpleTimeRecorder
 
 def get_soccer_net_raw_legibility_results(args, use_filtered = True, filter = 'gauss', exclude_balls=True):
     root_dir = config.dataset['SoccerNet']['root_dir']
@@ -168,8 +169,9 @@ def train_parseq(args):
         current_dir = os.getcwd()
         os.chdir(parseq_dir)
         data_root = os.path.join(current_dir, config.dataset['Hockey']['root_dir'], config.dataset['Hockey']['numbers_data'])
-        command = f"conda run -n {config.str_env} python3 train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
+        command = f"conda run --live-stream -n {config.str_env} python train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
                   f"pretrained=parseq trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
+        print(f'Run cmd [{command}]')
         success = os.system(command) == 0
         os.chdir(current_dir)
         print("Done training")
@@ -179,8 +181,9 @@ def train_parseq(args):
         current_dir = os.getcwd()
         os.chdir(parseq_dir)
         data_root = os.path.join(current_dir, config.dataset['SoccerNet']['root_dir'], config.dataset['SoccerNet']['numbers_data'])
-        command = f"conda run -n {config.str_env} python3 train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
+        command = f"conda run --live-stream -n {config.str_env} python train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
                   f"pretrained=parseq trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
+        print(f'Run cmd [{command}]')
         success = os.system(command) == 0
         os.chdir(current_dir)
         print("Done training")
@@ -197,7 +200,7 @@ def hockey_pipeline(args):
         root_dir = os.path.join(config.dataset["Hockey"]["root_dir"], config.dataset["Hockey"]["legibility_data"])
 
         print("Test legibility classifier")
-        command = f"python3 legibility_classifier.py --data {root_dir} --arch resnet34 --trained_model {config.dataset['Hockey']['legibility_model']}"
+        command = f"python legibility_classifier.py --data {root_dir} --arch resnet34 --trained_model {config.dataset['Hockey']['legibility_model']}"
         success = os.system(command) == 0
         print("Done legibility classifier")
 
@@ -205,7 +208,7 @@ def hockey_pipeline(args):
         print("Predict numbers")
         current_dir = os.getcwd()
         data_root = os.path.join(current_dir, config.dataset['Hockey']['root_dir'], config.dataset['Hockey']['numbers_data'])
-        command = f"conda run -n {config.str_env} python3 str.py  {config.dataset['Hockey']['str_model']}\
+        command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['Hockey']['str_model']}\
             --data_root={data_root}"
         success = os.system(command) == 0
         print("Done predict numbers")
@@ -234,65 +237,73 @@ def soccer_net_pipeline(args):
 
     # 1. Filter out soccer ball based on images size
     if args.pipeline['soccer_ball_filter']:
-        print("Determine soccer ball")
-        success = helpers.identify_soccer_balls(image_dir, soccer_ball_list)
-        print("Done determine soccer ball")
+        with SimpleTimeRecorder("Determine soccer ball"):
+            print("Determine soccer ball")
+            success = helpers.identify_soccer_balls(image_dir, soccer_ball_list)
+            print("Done determine soccer ball")
 
     # 1. generate and store features for each image in each tracklet
     if args.pipeline['feat']:
-        print("Generate features")
-        command = f"conda run -n {config.reid_env} python3 {config.reid_script} --tracklets_folder {image_dir} --output_folder {features_dir}"
-        success = os.system(command) == 0
-        print("Done generating features")
+        with SimpleTimeRecorder("Generate features"):
+            print("Generate features")
+            command = f"conda run --live-stream -n {config.reid_env} python {config.reid_script} --tracklets_folder {image_dir} --output_folder {features_dir}"
+            print(f'Run cmd [{command}]')
+            success = os.system(command) == 0
+            print("Done generating features")
 
     #2. identify and remove outliers based on features
     if args.pipeline['filter'] and success:
-        print("Identify and remove outliers")
-        command = f"python3 gaussian_outliers.py --tracklets_folder {image_dir} --output_folder {features_dir}"
-        success = os.system(command) == 0
-        print("Done removing outliers")
+        with SimpleTimeRecorder("Identify and remove outliers"):
+            print("Identify and remove outliers")
+            command = f"python gaussian_outliers.py --tracklets_folder {image_dir} --output_folder {features_dir}"
+            print(f'Run cmd [{command}]')
+            success = os.system(command) == 0
+            print("Done removing outliers")
 
     #3. pass all images through legibililty classifier and record results
     if args.pipeline['legible'] and success:
-        print("Classifying Legibility:")
-        try:
-            legible_dict, illegible_tracklets = get_soccer_net_legibility_results(args, use_filtered=True, filter='gauss', exclude_balls=True)
-            #get_soccer_net_raw_legibility_results(args)
-            #legible_dict, illegible_tracklets = get_soccer_net_combined_legibility_results(args)
-        except Exception as error:
-            print(f'Failed to run legibility classifier:{error}')
-            success = False
-        print("Done classifying legibility")
+        with SimpleTimeRecorder("Classifying Legibility"):
+            print("Classifying Legibility:")
+            try:
+                legible_dict, illegible_tracklets = get_soccer_net_legibility_results(args, use_filtered=True, filter='gauss', exclude_balls=True)
+                #get_soccer_net_raw_legibility_results(args)
+                #legible_dict, illegible_tracklets = get_soccer_net_combined_legibility_results(args)
+            except Exception as error:
+                print(f'Failed to run legibility classifier:{error}')
+                success = False
+            print("Done classifying legibility")
 
     #3.5 evaluate tracklet legibility results
     if args.pipeline['legible_eval'] and success:
-        print("Evaluate Legibility results:")
-        try:
-            if legible_dict is None:
-                 with open(full_legibile_path, 'r') as openfile:
-                    # Reading from json file
-                    legible_dict = json.load(openfile)
+        with SimpleTimeRecorder("Evaluate Legibility"):
+            print("Evaluate Legibility results:")
+            try:
+                if legible_dict is None:
+                     with open(full_legibile_path, 'r') as openfile:
+                        # Reading from json file
+                        legible_dict = json.load(openfile)
 
-            helpers.evaluate_legibility(gt_path, illegible_path, legible_dict, soccer_ball_list=soccer_ball_list)
-        except Exception as e:
-            print(e)
-            success = False
-        print("Done evaluating legibility")
+                helpers.evaluate_legibility(gt_path, illegible_path, legible_dict, soccer_ball_list=soccer_ball_list)
+            except Exception as e:
+                print(e)
+                success = False
+            print("Done evaluating legibility")
 
 
     #4. generate json for pose-estimation
     if args.pipeline['pose'] and success:
-        print("Generating json for pose")
-        try:
-            if legible_dict is None:
-                with open(full_legibile_path, 'r') as openfile:
-                    # Reading from json file
-                    legible_dict = json.load(openfile)
-            generate_json_for_pose_estimator(args, legible = legible_dict)
-        except Exception as e:
-            print(e)
-            success = False
-        print("Done generating json for pose")
+        with SimpleTimeRecorder("Generate json for pose"):
+            print("Generating json for pose")
+            try:
+                if legible_dict is None:
+                    with open(full_legibile_path, 'r') as openfile:
+                        # Reading from json file
+                        legible_dict = json.load(openfile)
+                generate_json_for_pose_estimator(args, legible = legible_dict)
+            except Exception as e:
+                print(e)
+                success = False
+            print("Done generating json for pose")
 
         # 4.5 Alternatively generate json for pose for all images in test/train
         #generate_json_for_pose_estimator(args)
@@ -300,67 +311,74 @@ def soccer_net_pipeline(args):
 
         #5. run pose estimation and store results
         if success:
-            print("Detecting pose")
-            command = f"conda run -n {config.pose_env} python3 pose.py {config.pose_home}/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/ViTPose_huge_coco_256x192.py \
-                {config.pose_home}/checkpoints/vitpose-h.pth --img-root / --json-file {input_json} \
-                --out-json {output_json}"
-            success = os.system(command) == 0
-            print("Done detecting pose")
+            with SimpleTimeRecorder("Detect pose"):
+                print("Detecting pose")
+                command = f"conda run --live-stream -n {config.pose_env} python pose.py {config.pose_home}/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/ViTPose_huge_coco_256x192.py \
+                    {config.pose_home}/checkpoints/vitpose-h.pth --img-root / --json-file {input_json} \
+                    --out-json {output_json}"
+                print(f'Run cmd [{command}]')
+                success = os.system(command) == 0
+                print("Done detecting pose")
 
 
     #6. generate cropped images
     if args.pipeline['crops'] and success:
-        print("Generate crops")
-        try:
-            crops_destination_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'], 'imgs')
-            Path(crops_destination_dir).mkdir(parents=True, exist_ok=True)
-            if legible_results is None:
-                with open(full_legibile_path, "r") as outfile:
-                    legible_results = json.load(outfile)
-            helpers.generate_crops(output_json, crops_destination_dir, legible_results)
-        except Exception as e:
-            print(e)
-            success = False
-        print("Done generating crops")
+        with SimpleTimeRecorder("Generate crops"):
+            print("Generate crops")
+            try:
+                crops_destination_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'], 'imgs')
+                Path(crops_destination_dir).mkdir(parents=True, exist_ok=True)
+                if legible_results is None:
+                    with open(full_legibile_path, "r") as outfile:
+                        legible_results = json.load(outfile)
+                helpers.generate_crops(output_json, crops_destination_dir, legible_results)
+            except Exception as e:
+                print(e)
+                success = False
+            print("Done generating crops")
 
     str_result_file = os.path.join(config.dataset['SoccerNet']['working_dir'],
                                    config.dataset['SoccerNet'][args.part]['jersey_id_result'])
     #7. run STR system on all crops
     if args.pipeline['str'] and success:
-        print("Predict numbers")
-        image_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'])
+        with SimpleTimeRecorder("Predict numbers"):
+            print("Predict numbers")
+            image_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'])
 
-        command = f"conda run -n {config.str_env} python3 str.py  {config.dataset['SoccerNet']['str_model']}\
-            --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file}"
-        success = os.system(command) == 0
-        print("Done predict numbers")
+            command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['SoccerNet']['str_model']}\
+                --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file}"
+            print(f'Run cmd [{command}]')
+            success = os.system(command) == 0
+            print("Done predict numbers")
 
     #str_result_file = os.path.join(config.dataset['SoccerNet']['working_dir'], "val_jersey_id_predictions.json")
     if args.pipeline['combine'] and success:
-        #8. combine tracklet results
-        analysis_results = None
-        #read predicted results, stack unique predictions, sum confidence scores for each, choose argmax
-        results_dict, analysis_results = helpers.process_jersey_id_predictions(str_result_file, useBias=True)
-        #results_dict, analysis_results = helpers.process_jersey_id_predictions_raw(str_result_file, useTS=True)
-        #results_dict, analysis_results = helpers.process_jersey_id_predictions_bayesian(str_result_file, useTS=True, useBias=True, useTh=True)
+        with SimpleTimeRecorder("Combine tracklet results"):
+            #8. combine tracklet results
+            analysis_results = None
+            #read predicted results, stack unique predictions, sum confidence scores for each, choose argmax
+            results_dict, analysis_results = helpers.process_jersey_id_predictions(str_result_file, useBias=True)
+            #results_dict, analysis_results = helpers.process_jersey_id_predictions_raw(str_result_file, useTS=True)
+            #results_dict, analysis_results = helpers.process_jersey_id_predictions_bayesian(str_result_file, useTS=True, useBias=True, useTh=True)
 
-        # add illegible tracklet predictions
-        consolidated_dict = consolidated_results(image_dir, results_dict, illegible_path, soccer_ball_list=soccer_ball_list)
+            # add illegible tracklet predictions
+            consolidated_dict = consolidated_results(image_dir, results_dict, illegible_path, soccer_ball_list=soccer_ball_list)
 
-        #save results as json
-        final_results_path = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['final_result'])
-        with open(final_results_path, 'w') as f:
-            json.dump(consolidated_dict, f)
+            #save results as json
+            final_results_path = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['final_result'])
+            with open(final_results_path, 'w') as f:
+                json.dump(consolidated_dict, f)
 
     if args.pipeline['eval'] and success:
-        #9. evaluate accuracy
-        if consolidated_dict is None:
-            with open(final_results_path, 'r') as f:
-                consolidated_dict = json.load(f)
-        with open(gt_path, 'r') as gf:
-            gt_dict = json.load(gf)
-        print(len(consolidated_dict.keys()), len(gt_dict.keys()))
-        helpers.evaluate_results(consolidated_dict, gt_dict, full_results = analysis_results)
+        with SimpleTimeRecorder("Evaluate accuracy"):
+            #9. evaluate accuracy
+            if consolidated_dict is None:
+                with open(final_results_path, 'r') as f:
+                    consolidated_dict = json.load(f)
+            with open(gt_path, 'r') as gf:
+                gt_dict = json.load(gf)
+            print(len(consolidated_dict.keys()), len(gt_dict.keys()))
+            helpers.evaluate_results(consolidated_dict, gt_dict, full_results = analysis_results)
 
 
 if __name__ == '__main__':
