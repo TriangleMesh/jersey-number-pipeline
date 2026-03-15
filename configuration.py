@@ -11,6 +11,11 @@ reid_script = 'centroid_reid.py'
 
 reid_home = 'reid/'
 
+# Real-ESRGAN upsampling config
+upsampling_enabled = True
+upsampling_threshold = 64
+upsampling_scale = 4
+
 
 dataset = {'SoccerNet':
                 {'root_dir': './data/SoccerNet',

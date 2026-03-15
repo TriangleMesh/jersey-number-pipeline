@@ -12,6 +12,12 @@ import shutil
 from pathlib import Path
 from scipy.special import softmax as softmax
 
+try:
+    from real_esrgan_upsampler import RealESRGANUpsampler
+    REAL_ESRGAN_AVAILABLE = True
+except ImportError:
+    REAL_ESRGAN_AVAILABLE = False
+
 json_img_template = { "id": 0,
             "file_name": "",
             "width": 0,
@@ -294,7 +300,62 @@ def generate_crops(json_file, crops_destination_dir, legible_results, all_legibl
     print(f"skipped {misses} out of {len(all_poses)}")
     return skipped, saved
 
-def is_valid_number(string):
+def generate_crops_with_upsampling(json_file, crops_destination_dir, legible_results, 
+                                   all_legible=None, upsampling_threshold=64, enable_upsampling=True):
+    """Generate crops with optional Real-ESRGAN upsampling for small images"""
+    if all_legible is None:
+        all_legible = [os.path.basename(e) for k in legible_results 
+                       for e in legible_results[k]]
+    
+    all_poses = json.load(open(json_file, 'r'))["pose_results"]
+    upsampler = RealESRGANUpsampler(upscale=4) if enable_upsampling and REAL_ESRGAN_AVAILABLE else None
+    
+    skipped, saved = {}, []
+    upsampled_count, total_count, misses = 0, 0, 0
+    
+    for entry in tqdm(all_poses):
+        points = get_points(entry)
+        img_name = entry["img_name"]
+        basename = os.path.basename(img_name)
+        
+        if basename not in all_legible or len(points) == 0:
+            if len(points) == 0:
+                tr = basename.split('_')[0]
+                skipped[tr] = skipped.get(tr, 0) + 1
+                misses += 1
+            continue
+        
+        img = cv2.imread(img_name)
+        if img is None:
+            continue
+        
+        h, w = img.shape[:2]
+        xs, ys = [p[0] for p in points], [p[1] for p in points]
+        x1, y1 = int(max(0, min(xs) - PADDING)), int(max(0, min(ys) - PADDING))
+        x2, y2 = int(min(w-1, max(xs) + PADDING)), int(min(h-1, max(ys) + PADDING))
+        
+        crop = img[y1:y2, x1:x2, :]
+        if crop.shape[0] == 0 or crop.shape[1] == 0:
+            tr = basename.split('_')[0]
+            skipped[tr] = skipped.get(tr, 0) + 1
+            misses += 1
+            continue
+        
+        if upsampler:
+            crop, upscaled = upsampler.process_crop(crop, threshold=upsampling_threshold)
+            if upscaled:
+                upsampled_count += 1
+        
+        total_count += 1
+        saved.append(img_name)
+        cv2.imwrite(os.path.join(crops_destination_dir, basename), crop)
+    
+    print(f"skipped {misses}/{len(all_poses)}, upsampled {upsampled_count}/{total_count}")
+    return skipped, saved, {'count': upsampled_count, 'total': total_count}
+
+
+
+
     if string == '-' or len(string) > 2:
         return False
     try:

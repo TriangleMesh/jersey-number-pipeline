@@ -187,6 +187,16 @@ def setup_sam(root_dir):
     print(f'setup_sam(): ======================= end =======================')
 
 
+def setup_realesrgan(root):
+    """Install Real-ESRGAN packages"""
+    for pkg in ['basicsr', 'realesrgan']:
+        try:
+            __import__(pkg)
+        except ImportError:
+            os.system(f"pip install {pkg}")
+    print(f'setup_realesrgan(): ======================= end =======================')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('dataset', default='all', help="Options: all, SoccerNet, Hockey")
@@ -200,6 +210,7 @@ if __name__ == '__main__':
     setup_pose(root_dir)
     download_models_common(root_dir)
     setup_str(root_dir)
+    setup_realesrgan(root_dir)  # Setup Real-ESRGAN for upsampling
 
     #SoccerNet only
     if not args.dataset == 'Hockey':
@@ -208,3 +219,4 @@ if __name__ == '__main__':
 
     if not args.dataset == 'SoccerNet':
         download_models(root_dir, 'Hockey')
+

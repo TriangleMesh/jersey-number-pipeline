@@ -321,21 +321,34 @@ def soccer_net_pipeline(args):
                 print("Done detecting pose")
 
 
-    #6. generate cropped images
+
+
+    #6. Generate crops with optional Real-ESRGAN upsampling
     if args.pipeline['crops'] and success:
         with SimpleTimeRecorder("Generate crops"):
-            print("Generate crops")
+            print("Generate crops (with Real-ESRGAN upsampling)")
             try:
-                crops_destination_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'], 'imgs')
+                crops_destination_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], 
+                                                    config.dataset['SoccerNet'][args.part]['crops_folder'], 'imgs')
                 Path(crops_destination_dir).mkdir(parents=True, exist_ok=True)
                 if legible_results is None:
-                    with open(full_legibile_path, "r") as outfile:
-                        legible_results = json.load(outfile)
-                helpers.generate_crops(output_json, crops_destination_dir, legible_results)
+                    with open(full_legibile_path, "r") as f:
+                        legible_results = json.load(f)
+                
+                enable_upsampling = args.pipeline.get('upsampling', True)
+                upsampling_threshold = config.upsampling_threshold if hasattr(config, 'upsampling_threshold') else 64
+                
+                skipped, saved, stats = helpers.generate_crops_with_upsampling(
+                    output_json, crops_destination_dir, legible_results,
+                    upsampling_threshold=upsampling_threshold,
+                    enable_upsampling=enable_upsampling
+                )
             except Exception as e:
-                print(e)
+                print(f"Error: {e}")
                 success = False
             print("Done generating crops")
+
+
 
     str_result_file = os.path.join(config.dataset['SoccerNet']['working_dir'],
                                    config.dataset['SoccerNet'][args.part]['jersey_id_result'])
@@ -397,6 +410,7 @@ if __name__ == '__main__':
                        "legible_eval": False,
                        "pose": True,
                        "crops": True,
+                       "upsampling": True,  # Enable Real-ESRGAN upsampling for low-resolution crops
                        "str": True,
                        "combine": True,
                        "eval": True}
