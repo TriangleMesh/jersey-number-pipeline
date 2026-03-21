@@ -1,0 +1,77 @@
+[
+    {
+        "task_name": "Determine soccer ball",
+        "start_time": "2026-02-23T09:39:34.770707",
+        "elapsed_time": 177.3364987373352
+    },
+    {
+        "task_name": "Generate features",
+        "start_time": "2026-02-23T09:42:32.123287",
+        "elapsed_time": 9.27878475189209
+    },
+    {
+        "task_name": "Determine soccer ball",
+        "start_time": "2026-02-23T09:45:14.933046",
+        "elapsed_time": 124.19003057479858
+    },
+    {
+        "task_name": "Determine soccer ball",
+        "start_time": "2026-02-23T10:00:04.607697",
+        "elapsed_time": 96.28089380264282
+    },
+    {
+        "task_name": "Generate features",
+        "start_time": "2026-02-23T10:01:40.888590",
+        "elapsed_time": 13520.39872097969
+    },
+    {
+        "task_name": "Identify and remove outliers",
+        "start_time": "2026-02-23T13:47:01.319045",
+        "elapsed_time": 198.29015612602234
+    },
+    {
+        "task_name": "Classifying Legibility",
+        "start_time": "2026-02-23T13:50:19.609201",
+        "elapsed_time": 24467.535737276077
+    },
+    {
+        "task_name": "Generate json for pose",
+        "start_time": "2026-02-23T20:38:07.207478",
+        "elapsed_time": 643.7619800567627
+    },
+    {
+        "task_name": "Detect pose",
+        "start_time": "2026-02-23T20:48:50.969458",
+        "elapsed_time": 4.283874273300171
+    },
+    {
+        "task_name": "Generate json for pose",
+        "start_time": "2026-02-23T23:18:44.868849",
+        "elapsed_time": 691.8180298805237
+    },
+    {
+        "task_name": "Detect pose",
+        "start_time": "2026-02-23T23:30:16.765019",
+        "elapsed_time": 10513.945403814316
+    },
+    {
+        "task_name": "Generate crops",
+        "start_time": "2026-02-24T02:25:30.741689",
+        "elapsed_time": 1341.507521390915
+    },
+    {
+        "task_name": "Predict numbers",
+        "start_time": "2026-02-24T02:47:52.249211",
+        "elapsed_time": 2414.154595375061
+    },
+    {
+        "task_name": "Combine tracklet results",
+        "start_time": "2026-02-24T03:28:06.403806",
+        "elapsed_time": 7.6271538734436035
+    },
+    {
+        "task_name": "Evaluate accuracy",
+        "start_time": "2026-02-24T03:28:14.030960",
+        "elapsed_time": 0.015625
+    }
+]
