@@ -395,8 +395,8 @@ if __name__ == '__main__':
                        "filter": False,
                        "legible": False,
                        "legible_eval": False,
-                       "pose": True,
-                       "crops": True,
+                       "pose": False,
+                       "crops": False,
                        "str": True,
                        "combine": True,
                        "eval": True}

@@ -56,7 +56,10 @@ dataset = {'SoccerNet':
                      'gauss_filtered': 'train/main_subject_gauss_th=3.5_r=3.json',
                      'pose_input_json': 'pose_input_train.json',
                      'pose_output_json': 'pose_results_train.json',
-                     'raw_legible_result': 'train_raw_legible_combined.json'
+                     'raw_legible_result': 'train_raw_legible_combined.json',
+                     'crops_folder': 'crops_train',
+                     'jersey_id_result': 'jersey_id_results_train.json',
+                     'final_result': 'final_results_train.json'
                  },
                  'challenge': {
                         'images': 'challenge/images',
@@ -81,7 +84,9 @@ dataset = {'SoccerNet':
 
                  'legibility_model_url':  "https://drive.google.com/uc?id=18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw",
                  'pose_model_url': 'https://drive.google.com/uc?id=1A3ftF118IcxMn_QONndR-8dPWpf7XzdV',
-                 'str_model': 'models/parseq_epoch=24-step=2575-val_accuracy=95.6044-val_NED=96.3255.ckpt',
+                 'str_model': 'models/parseq_augmented_v3.ckpt',
+                 #'str_model': 'models/parseq_augmented.ckpt',
+                 #'str_model': 'models/parseq_epoch=24-step=2575-val_accuracy=95.6044-val_NED=96.3255.ckpt',
 
                  #'str_model': 'pretrained=parseq',
                  'str_model_url': "https://drive.google.com/uc?id=1uRln22tlhneVt3P6MePmVxBWSLMsL3bm",
