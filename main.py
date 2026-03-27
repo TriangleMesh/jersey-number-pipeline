@@ -412,5 +412,3 @@ if __name__ == '__main__':
             print("Unknown dataset")
     else:
         train_parseq(args)
-
-
