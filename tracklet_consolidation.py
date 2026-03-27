@@ -53,9 +53,9 @@ def process_jersey_id_predictions_v2(str_result_file: str):
 
     # Your tmp_str_results.json format is a LIST of dicts: {"img","pred","conf"}
     for row in data:
-        img = row.get("img")
-        pred = row.get("pred")
-        conf = row.get("conf", 0.0)
+        img  = row.get("img") or row.get("image") or row.get("path")
+        pred = row.get("pred") or row.get("text") or row.get("prediction")
+        conf = row.get("conf") or row.get("prob") or row.get("confidence") or 0.0
         tid = _tracklet_id_from_path(img)
         groups_preds[tid].append(pred)
         groups_confs[tid].append(conf)
