@@ -358,7 +358,12 @@ def soccer_net_pipeline(args):
             #8. combine tracklet results
             analysis_results = None
             #read predicted results, stack unique predictions, sum confidence scores for each, choose argmax
-            results_dict, analysis_results = tc.process_jersey_id_predictions_v2(str_result_file)
+                        # read predicted results, consolidate across tracklet
+            try:
+                results_dict, analysis_results = tc.process_jersey_id_predictions_v2(str_result_file)
+            except Exception as e:
+                print(f"[WARN] v2 consolidation failed, falling back to helpers: {e}")
+                results_dict, analysis_results = helpers.process_jersey_id_predictions(str_result_file, useBias=True)
             #results_dict, analysis_results = helpers.process_jersey_id_predictions_raw(str_result_file, useTS=True)
             #results_dict, analysis_results = helpers.process_jersey_id_predictions_bayesian(str_result_file, useTS=True, useBias=True, useTh=True)
 
