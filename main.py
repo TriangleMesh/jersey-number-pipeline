@@ -8,6 +8,7 @@ from tqdm import tqdm
 import configuration as config
 from pathlib import Path
 from helpers import SimpleTimeRecorder
+import tracklet_consolidation as tc
 
 def get_soccer_net_raw_legibility_results(args, use_filtered = True, filter = 'gauss', exclude_balls=True):
     root_dir = config.dataset['SoccerNet']['root_dir']
@@ -357,7 +358,7 @@ def soccer_net_pipeline(args):
             #8. combine tracklet results
             analysis_results = None
             #read predicted results, stack unique predictions, sum confidence scores for each, choose argmax
-            results_dict, analysis_results = helpers.process_jersey_id_predictions(str_result_file, useBias=True)
+            results_dict, analysis_results = tc.process_jersey_id_predictions_v2(str_result_file)
             #results_dict, analysis_results = helpers.process_jersey_id_predictions_raw(str_result_file, useTS=True)
             #results_dict, analysis_results = helpers.process_jersey_id_predictions_bayesian(str_result_file, useTS=True, useBias=True, useTh=True)
 
