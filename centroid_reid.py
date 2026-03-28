@@ -8,6 +8,13 @@ sys.path.append(str(ROOT))  # add ROOT to PATH
 
 import numpy as np
 import torch
+
+_orig_torch_load = torch.load
+def _torch_load_compat(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _orig_torch_load(*args, **kwargs)
+torch.load = _torch_load_compat
+
 from tqdm import tqdm
 import cv2
 from PIL import Image

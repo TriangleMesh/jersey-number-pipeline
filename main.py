@@ -208,7 +208,7 @@ def hockey_pipeline(args):
         print("Predict numbers")
         current_dir = os.getcwd()
         data_root = os.path.join(current_dir, config.dataset['Hockey']['root_dir'], config.dataset['Hockey']['numbers_data'])
-        command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['Hockey']['str_model']}\
+        command = f"/workspace/miniconda3/envs/parseq2/bin/python str.py  {config.dataset['Hockey']['str_model']}\
             --data_root={data_root}"
         success = os.system(command) == 0
         print("Done predict numbers")
@@ -246,7 +246,7 @@ def soccer_net_pipeline(args):
     if args.pipeline['feat']:
         with SimpleTimeRecorder("Generate features"):
             print("Generate features")
-            command = f"conda run --live-stream -n {config.reid_env} python {config.reid_script} --tracklets_folder {image_dir} --output_folder {features_dir}"
+            command = f"/workspace/miniconda3/envs/centroids/bin/python {config.reid_script} --tracklets_folder {image_dir} --output_folder {features_dir}"
             print(f'Run cmd [{command}]')
             success = os.system(command) == 0
             print("Done generating features")
@@ -313,7 +313,7 @@ def soccer_net_pipeline(args):
         if success:
             with SimpleTimeRecorder("Detect pose"):
                 print("Detecting pose")
-                command = f"conda run --live-stream -n {config.pose_env} python pose.py {config.pose_home}/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/ViTPose_huge_coco_256x192.py \
+                command = f"/workspace/miniconda3/envs/vitpose/bin/python pose.py {config.pose_home}/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/ViTPose_huge_coco_256x192.py \
                     {config.pose_home}/checkpoints/vitpose-h.pth --img-root / --json-file {input_json} \
                     --out-json {output_json}"
                 print(f'Run cmd [{command}]')
@@ -345,7 +345,7 @@ def soccer_net_pipeline(args):
             print("Predict numbers")
             image_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'])
 
-            command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['SoccerNet']['str_model']}\
+            command = f"/workspace/miniconda3/envs/parseq2/bin/python str.py  {config.dataset['SoccerNet']['str_model']}\
                 --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file}"
             print(f'Run cmd [{command}]')
             success = os.system(command) == 0
