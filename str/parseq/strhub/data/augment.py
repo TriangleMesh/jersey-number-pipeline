@@ -7,6 +7,10 @@ from functools import partial
 
 import imgaug.augmenters as iaa
 import numpy as np
+
+if not hasattr(np, "bool"):
+    np.bool = bool
+
 from PIL import ImageFilter, Image
 from timm.data import auto_augment
 
