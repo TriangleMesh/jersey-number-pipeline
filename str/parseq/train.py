@@ -15,6 +15,7 @@
 # limitations under the License.
 import math
 from pathlib import Path
+import torch
 
 from omegaconf import DictConfig, open_dict
 import hydra
@@ -77,8 +78,13 @@ def main(config: DictConfig):
     model: BaseSystem = hydra.utils.instantiate(config.model)
     # If specified, use pretrained weights to initialize the model
     if config.pretrained is not None:
-        model.load_state_dict(get_pretrained_weights(config.pretrained))
-    print(summarize(model, max_depth=1 if model.hparams.name.startswith('parseq') else 2))
+        if config.pretrained.endswith('.ckpt'):
+            # Load only model weights from a local checkpoint (fresh optimizer)
+            ckpt = torch.load(config.pretrained, map_location='cpu')
+            model.load_state_dict(ckpt['state_dict'])
+            print(f'Loaded model weights from {config.pretrained}')
+        else:
+            model.load_state_dict(get_pretrained_weights(config.pretrained))
 
     datamodule: SceneTextDataModule = hydra.utils.instantiate(config.data)
 

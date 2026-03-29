@@ -83,14 +83,9 @@ class BaseSystem(pl.LightningModule, ABC):
         raise NotImplementedError
 
     def configure_optimizers(self):
-        agb = self.trainer.accumulate_grad_batches
-        # Linear scaling so that the effective learning rate is constant regardless of the number of GPUs used with DDP.
-        lr_scale = agb * math.sqrt(self.trainer.num_devices) * self.batch_size / 256.
-        lr = lr_scale * self.lr
+        lr = 2.5e-6  # Low constant LR for fine-tuning to avoid catastrophic forgetting
         optim = create_optimizer_v2(self, 'adamw', lr, self.weight_decay)
-        sched = OneCycleLR(optim, lr, self.trainer.estimated_stepping_batches, pct_start=self.warmup_pct,
-                           cycle_momentum=False)
-        return {'optimizer': optim, 'lr_scheduler': {'scheduler': sched, 'interval': 'step'}}
+        return {'optimizer': optim}
 
     def optimizer_zero_grad(self, epoch: int, batch_idx: int, optimizer: Optimizer, optimizer_idx: int):
         optimizer.zero_grad(set_to_none=True)
