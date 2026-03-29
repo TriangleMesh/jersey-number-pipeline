@@ -19,6 +19,7 @@ import string
 import sys
 from dataclasses import dataclass
 from typing import List
+from PIL import Image, ImageFilter
 
 ROOT = './str/parseq/'
 sys.path.append(str(ROOT))  # add ROOT to PATH
@@ -76,6 +77,26 @@ def print_results_table(results: List[Result], file=None):
           f'| {c.confidence:>10.2f} | {c.label_length:>12.2f} |', file=file)
 
 
+
+def maybe_upscale_tiny_crop(image, min_h=64, scale_factor=2):
+    """
+    Inference-only gated enhancement:
+    - only touch very small crops
+    - enlarge with bicubic
+    - apply a light sharpen
+    This is a lightweight stand-in for gated SR and is very low risk.
+    """
+    w, h = image.size
+    if h >= min_h:
+        return image
+
+    new_w = max(1, int(w * scale_factor))
+    new_h = max(1, int(h * scale_factor))
+    image = image.resize((new_w, new_h), Image.BICUBIC)
+    image = image.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=2))
+    return image
+
+
 def run_inference(model, data_root, result_file, img_size):
     # load images one by one, save paths and result
     file_dir = os.path.join(data_root, 'imgs')
@@ -84,6 +105,7 @@ def run_inference(model, data_root, result_file, img_size):
     results = {}
     for filename in tqdm(filenames):
         image = Image.open(os.path.join(file_dir, filename)).convert('RGB')
+        image = maybe_upscale_tiny_crop(image, min_h=64, scale_factor=2)
         transform = SceneTextDataModule.get_transform(img_size)
         image = transform(image)
         image = image.unsqueeze(0)
@@ -112,6 +134,7 @@ def run_inference_with_temperature(model, data_root, img_size):
     results = {}
     for filename in filenames:
         image = Image.open(os.path.join(file_dir, filename)).convert('RGB')
+        image = maybe_upscale_tiny_crop(image, min_h=64, scale_factor=2)
         transform = SceneTextDataModule.get_transform(img_size)
         image = transform(image)
         image = image.unsqueeze(0)
