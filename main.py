@@ -168,7 +168,7 @@ def train_parseq(args):
         parseq_dir = config.str_home
         current_dir = os.getcwd()
         os.chdir(parseq_dir)
-        data_root = os.path.join(current_dir, config.dataset['Hockey']['root_dir'], config.dataset['Hockey']['numbers_data'])
+        data_root = os.path.join(current_dir, config.dataset['Hockey']['root_dir'], config.dataset['Hockey']['numbers_data_esrgan'])
         command = f"conda run --live-stream -n {config.str_env} python train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
                   f"pretrained=parseq trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
         print(f'Run cmd [{command}]')
@@ -180,7 +180,7 @@ def train_parseq(args):
         parseq_dir = config.str_home
         current_dir = os.getcwd()
         os.chdir(parseq_dir)
-        data_root = os.path.join(current_dir, config.dataset['SoccerNet']['root_dir'], config.dataset['SoccerNet']['numbers_data'])
+        data_root = os.path.join(current_dir, config.dataset['SoccerNet']['root_dir'], config.dataset['SoccerNet']['numbers_data_esrgan'])
         command = f"conda run --live-stream -n {config.str_env} python train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
                   f"pretrained=parseq trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
         print(f'Run cmd [{command}]')
@@ -359,7 +359,7 @@ def soccer_net_pipeline(args):
             image_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'])
 
             command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['SoccerNet']['str_model']}\
-                --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file}"
+                --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file} --use_esrgan --esrgan_model weights/RealESRGAN_x4plus.pth"
             print(f'Run cmd [{command}]')
             success = os.system(command) == 0
             print("Done predict numbers")

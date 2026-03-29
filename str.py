@@ -71,7 +71,15 @@ def print_results_table(results: List[Result], file=None):
           f'| {c.confidence:>10.2f} | {c.label_length:>12.2f} |', file=file)
 
 
-def run_inference(model, data_root, result_file, img_size):
+def load_esrgan(model_path: str, half: bool = False):
+    from basicsr.archs.rrdbnet_arch import RRDBNet
+    from realesrgan import RealESRGANer
+    model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+    return RealESRGANer(scale=4, model_path=model_path, model=model,
+                        tile=128, tile_pad=10, pre_pad=0, half=half)
+
+
+def run_inference(model, data_root, result_file, img_size, esrgan_upsampler=None):
     # load images one by one, save paths and result
     file_dir = os.path.join(data_root, 'imgs')
     filenames = os.listdir(file_dir)
@@ -79,6 +87,14 @@ def run_inference(model, data_root, result_file, img_size):
     results = {}
     for filename in tqdm(filenames):
         image = Image.open(os.path.join(file_dir, filename)).convert('RGB')
+        if esrgan_upsampler is not None:
+            import numpy as np
+            bgr = np.array(image)[:, :, ::-1]
+            try:
+                output, _ = esrgan_upsampler.enhance(bgr, outscale=4)
+                image = Image.fromarray(output[:, :, ::-1])
+            except Exception as e:
+                print(f"ESRGAN failed for {filename}: {e}")
         transform = SceneTextDataModule.get_transform(img_size)
         image = transform(image)
         image = image.unsqueeze(0)
@@ -250,6 +266,10 @@ def main():
     parser.add_argument('--tune_temperature', action='store_true', default=False,
                         help='Find best t-scale')
     parser.add_argument('--result_file', default='outputs/preds.json')
+    parser.add_argument('--use_esrgan', action='store_true', default=False,
+                        help='Apply Real-ESRGAN upscaling to crops before recognition')
+    parser.add_argument('--esrgan_model', default='weights/RealESRGAN_x4plus.pth',
+                        help='Path to Real-ESRGAN model weights')
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
 
@@ -264,8 +284,15 @@ def main():
     model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     hp = model.hparams
 
+    esrgan_upsampler = None
+    if args.use_esrgan:
+        print(f"Loading Real-ESRGAN from {args.esrgan_model} ...")
+        esrgan_upsampler = load_esrgan(args.esrgan_model)
+        print("Real-ESRGAN loaded.")
+
     if args.inference:
-        run_inference(model, args.data_root, args.result_file, hp.img_size)
+        run_inference(model, args.data_root, args.result_file, hp.img_size,
+                      esrgan_upsampler=esrgan_upsampler)
         exit()
     if args.tune_temperature:
         set_temperature(model, args.data_root, hp.img_size)

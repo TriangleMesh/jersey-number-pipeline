@@ -80,6 +80,7 @@ dataset = {'SoccerNet':
                         'raw_legible_result': 'challenge_raw_legible_vit.json'
                  },
                  'numbers_data': 'lmdb',
+                 'numbers_data_esrgan': 'lmdb_esrgan',
 
                  'legibility_model': "models/legibility_resnet34_soccer_20240215.pth",
                  'legibility_model_arch': "resnet34",
