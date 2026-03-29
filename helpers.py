@@ -366,19 +366,6 @@ def generate_crops_with_upsampling(json_file, crops_destination_dir, legible_res
     return skipped, saved, {'count': upsampled_count, 'total': total_count}
 
 
-
-
-    if string == '-' or len(string) > 2:
-        return False
-    try:
-        num = int(string)
-    except:
-        return False
-    if num > 0 and num < 100:
-        return True
-    else:
-        False
-
 # add bias - give twice the weight to double digit predictions
 def get_bias(value):
     if int(value) > 9:
