@@ -300,6 +300,18 @@ def generate_crops(json_file, crops_destination_dir, legible_results, all_legibl
     print(f"skipped {misses} out of {len(all_poses)}")
     return skipped, saved
 
+def is_valid_number(string):
+    if string == '-' or len(string) > 2:
+        return False
+    try:
+        num = int(string)
+    except:
+        return False
+    if num > 0 and num < 100:
+        return True
+    else:
+        False
+
 def generate_crops_with_upsampling(json_file, crops_destination_dir, legible_results, 
                                    all_legible=None, upsampling_threshold=64, enable_upsampling=True):
     """Generate crops with optional Real-ESRGAN upsampling for small images"""
