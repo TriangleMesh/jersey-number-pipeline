@@ -169,8 +169,9 @@ def train_parseq(args):
         current_dir = os.getcwd()
         os.chdir(parseq_dir)
         data_root = os.path.join(current_dir, config.dataset['Hockey']['root_dir'], config.dataset['Hockey']['numbers_data_esrgan'])
+        str_model_path_hockey = os.path.join(current_dir, config.dataset['Hockey']['str_model'])
         command = f"conda run --live-stream -n {config.str_env} python train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
-                  f"pretrained=parseq trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
+                  f"pretrained='{str_model_path_hockey}' trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
         print(f'Run cmd [{command}]')
         success = os.system(command) == 0
         os.chdir(current_dir)
@@ -183,7 +184,7 @@ def train_parseq(args):
         data_root = os.path.join(current_dir, config.dataset['SoccerNet']['root_dir'], config.dataset['SoccerNet']['numbers_data_esrgan'])
         str_model_path = os.path.join(current_dir, config.dataset['SoccerNet']['str_model'])
         command = f"conda run --live-stream -n {config.str_env} python train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
-                  f"pretrained={str_model_path} trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
+                  f"pretrained='{str_model_path}' trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
         print(f'Run cmd [{command}]')
         success = os.system(command) == 0
         os.chdir(current_dir)
