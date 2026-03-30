@@ -17,13 +17,8 @@ and that the STR literature identifies as gaps for broadcast sports video:
 
 Each augmentation is applied independently with moderate probability.
 
-Based on:
-  - STRAug (Atienza, ICCV Workshop 2021) — Blur and Camera groups
-  - Koshkina & Elder (CVPR Workshops 2024) — error analysis
-  - Lébl et al. (SCIA 2023) — blur-type matching is essential
-
 Usage:
-  python augment_and_build_lmdb_v3.py ^
+  python augment_and_build_lmdb_v2.py ^
       --crops_dir  out/SoccerNetResults/crops_train/imgs ^
       --gt_json    data/SoccerNet/train/train_gt.json ^
       --dst_lmdb   data/SoccerNet/lmdb_augmented_v3/train ^
@@ -101,7 +96,7 @@ def augment_image(img, p_motion=0.3, p_pixelate=0.2, p_jpeg=0.3):
         img = apply_motion_blur(img)
     elif roll < p_motion + p_pixelate:
         img = apply_pixelate(img)
-    # JPEG can still stack (it's mild)
+    # JPEG can still stack
     if random.random() < p_jpeg:
         img = apply_jpeg_compress(img)
     return img

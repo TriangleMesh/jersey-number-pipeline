@@ -23,13 +23,6 @@ Usage
       --gt_json    data/SoccerNet/train/train_gt.json ^
       --dst_lmdb   data/SoccerNet/lmdb_augmented/train ^
       --num_augmented_copies 5
-
-After building, fine-tune PARSeq:
-  conda run --live-stream -n parseq2 python str/parseq/train.py ^
-      +experiment=parseq dataset=real ^
-      data.root_dir=data/SoccerNet/lmdb_augmented ^
-      trainer.max_epochs=25 pretrained=parseq ^
-      trainer.devices=1 data.batch_size=128 data.max_label_length=2
 """
 
 import argparse
@@ -312,12 +305,7 @@ def main():
         print(f"\n  Note: You may also need a val/ LMDB in {dst_parent}")
         print(f"  You can symlink or copy your existing val LMDB there.")
 
-    print("\nDone! To fine-tune PARSeq with augmented data:")
-    print(f"  conda run --live-stream -n parseq2 python str/parseq/train.py \\")
-    print(f"      +experiment=parseq dataset=real \\")
-    print(f"      data.root_dir={dst_parent} \\")
-    print(f"      trainer.max_epochs=25 pretrained=parseq \\")
-    print(f"      trainer.devices=1 data.batch_size=128 data.max_label_length=2")
+    print("\nDone creating augmented LMDB")
 
 
 if __name__ == '__main__':
