@@ -243,5 +243,65 @@
         "task_name": "Evaluate Legibility",
         "start_time": "2026-03-28T10:25:02.379395",
         "elapsed_time": 0.0
+    },
+    {
+        "task_name": "Generate json for pose",
+        "start_time": "2026-03-28T23:08:02.700494",
+        "elapsed_time": 1109.3560259342194
+    },
+    {
+        "task_name": "Detect pose",
+        "start_time": "2026-03-28T23:26:32.067768",
+        "elapsed_time": 13038.711562633514
+    },
+    {
+        "task_name": "Generate crops",
+        "start_time": "2026-03-29T03:03:50.826226",
+        "elapsed_time": 2002.5749564170837
+    },
+    {
+        "task_name": "Predict numbers",
+        "start_time": "2026-03-29T03:37:13.401183",
+        "elapsed_time": 2992.3338005542755
+    },
+    {
+        "task_name": "Combine tracklet results",
+        "start_time": "2026-03-29T04:27:05.750535",
+        "elapsed_time": 9.238490343093872
+    },
+    {
+        "task_name": "Evaluate accuracy",
+        "start_time": "2026-03-29T04:27:15.004734",
+        "elapsed_time": 0.0
+    },
+    {
+        "task_name": "Predict numbers",
+        "start_time": "2026-03-29T13:37:16.194714",
+        "elapsed_time": 2438.364317417145
+    },
+    {
+        "task_name": "Combine tracklet results",
+        "start_time": "2026-03-29T14:17:54.573982",
+        "elapsed_time": 7.837796926498413
+    },
+    {
+        "task_name": "Evaluate accuracy",
+        "start_time": "2026-03-29T14:18:02.421408",
+        "elapsed_time": 0.007691621780395508
+    },
+    {
+        "task_name": "Predict numbers",
+        "start_time": "2026-03-29T15:50:10.024631",
+        "elapsed_time": 2484.5324840545654
+    },
+    {
+        "task_name": "Combine tracklet results",
+        "start_time": "2026-03-29T16:31:34.571365",
+        "elapsed_time": 7.841562986373901
+    },
+    {
+        "task_name": "Evaluate accuracy",
+        "start_time": "2026-03-29T16:31:42.424403",
+        "elapsed_time": 0.008946418762207031
     }
 ]
