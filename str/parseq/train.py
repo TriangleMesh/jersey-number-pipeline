@@ -79,9 +79,14 @@ def main(config: DictConfig):
     if config.pretrained is not None:
         import os as _os, torch as _torch
         if _os.path.isfile(config.pretrained):
-            # Local Lightning checkpoint (.ckpt): extract state_dict
+            # Local Lightning checkpoint (.ckpt): extract state_dict.
+            # Truncate pos_queries if the pretrained max_label_length differs
+            # from the current config (e.g. pretrained=25, current=2).
             ckpt = _torch.load(config.pretrained, map_location='cpu')
             state_dict = ckpt.get('state_dict', ckpt)
+            if 'pos_queries' in state_dict:
+                current_len = model.state_dict()['pos_queries'].shape[1]
+                state_dict['pos_queries'] = state_dict['pos_queries'][:, :current_len, :]
             model.load_state_dict(state_dict)
         else:
             model.load_state_dict(get_pretrained_weights(config.pretrained))
