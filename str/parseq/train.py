@@ -77,10 +77,10 @@ def main(config: DictConfig):
     model: BaseSystem = hydra.utils.instantiate(config.model)
     # If specified, use pretrained weights to initialize the model
     if config.pretrained is not None:
-        import os as _os
+        import os as _os, torch as _torch
         if _os.path.isfile(config.pretrained):
             # Local Lightning checkpoint (.ckpt): extract state_dict
-            ckpt = torch.load(config.pretrained, map_location='cpu')
+            ckpt = _torch.load(config.pretrained, map_location='cpu')
             state_dict = ckpt.get('state_dict', ckpt)
             model.load_state_dict(state_dict)
         else:
