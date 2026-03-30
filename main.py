@@ -183,8 +183,13 @@ def train_parseq(args):
         os.chdir(parseq_dir)
         data_root = os.path.join(current_dir, config.dataset['SoccerNet']['root_dir'], config.dataset['SoccerNet']['numbers_data_esrgan'])
         str_model_path = os.path.join(current_dir, config.dataset['SoccerNet']['str_model'])
+        # Hydra cannot handle '=' in argument values across conda run shell layers.
+        # Copy the checkpoint to a path without '=' so it can be passed safely.
+        import shutil as _shutil
+        safe_pretrained = os.path.join(current_dir, 'models', 'parseq_soccer_pretrained.ckpt')
+        _shutil.copy2(str_model_path, safe_pretrained)
         command = f"conda run --live-stream -n {config.str_env} python train.py +experiment=parseq dataset=real data.root_dir={data_root} trainer.max_epochs=25 " \
-                  f"pretrained='{str_model_path}' trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
+                  f"pretrained={safe_pretrained} trainer.devices=1 trainer.val_check_interval=1 data.batch_size=128 data.max_label_length=2"
         print(f'Run cmd [{command}]')
         success = os.system(command) == 0
         os.chdir(current_dir)
