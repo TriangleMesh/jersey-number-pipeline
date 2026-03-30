@@ -21,9 +21,9 @@ class RealESRGANUpsampler:
             )
             model = RRDBNet(**model_cfg)
             
-            url = f'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x{upscale}plus.pth'
+            default_path = f'weights/RealESRGAN_x{upscale}plus.pth'
             self.model = RealESRGANer(
-                scale=upscale, model_path=model_path or url, model=model,
+                scale=upscale, model_path=model_path or default_path, model=model,
                 tile=400, tile_pad=10, pre_pad=0, half=(self.device == 'cuda')
             )
             self.loaded = True
