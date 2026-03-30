@@ -7,7 +7,7 @@ Over 94% of SoccerNet player crops have a height below 64px. At this resolution,
 We explored using [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) — a blind super-resolution model that upscales images 4x while recovering sharp edges and fine details — to improve recognition accuracy.
 
 **Attempt 1 — Apply ESRGAN at inference only:**
-Apply Real-ESRGAN to crops at inference time, without retraining PARSeq. Result: accuracy **dropped to ~45%**. The pre-trained PARSeq model was fine-tuned on raw low-resolution crops, so feeding it ESRGAN-enhanced high-resolution images caused a training/inference distribution mismatch.
+Apply Real-ESRGAN to crops at inference time, without retraining PARSeq. Result: accuracy **dropped to ~45%**. The pre-trained PARSeq model was fine-tuned on raw low-resolution crops, so feeding it ESRGAN-enhanced high-resolution images caused a training/inference distribution mismatch. See [report_real_esrgan.md](report_real_esrgan.md) for a detailed analysis.
 
 **Attempt 2 — Apply ESRGAN consistently at both training and inference:**
 Re-process the entire training LMDB with Real-ESRGAN, re-fine-tune PARSeq on the enhanced images, then apply ESRGAN at inference (STR). Result: accuracy **recovered to ~85%**, with the distribution mismatch eliminated.
@@ -16,14 +16,33 @@ Re-process the entire training LMDB with Real-ESRGAN, re-fine-tune PARSeq on the
 
 Compared to the original codebase, the following files were added or modified:
 
+**New files:**
+
 | File | Description |
 |---|---|
-| `esrgan_lmdb.py` | New script — applies Real-ESRGAN to every image in the training LMDB and writes a new LMDB |
-| `real_esrgan_upsampler.py` | New module — wraps `RealESRGANer` for use in the inference pipeline |
-| `str.py` | Modified — added `--use_esrgan` flag to apply ESRGAN to crops before PARSeq recognition |
-| `str/parseq/train.py` | Modified — added support for loading local `.ckpt` checkpoints as pretrained weights |
-| `main.py` | Modified — STR inference command respects the `upsampling` flag; training uses `lmdb_esrgan` |
-| `configuration.py` | Modified — added `numbers_data_esrgan` path and updated `str_model` to ESRGAN-trained checkpoint |
+| `esrgan_lmdb.py` | Applies Real-ESRGAN to every image in the training LMDB and writes a new LMDB |
+| `real_esrgan_upsampler.py` | Wraps `RealESRGANer` for use in the inference pipeline |
+| `plot_crop_analysis.py` | Plots the height distribution of crop images |
+| `report_real_esrgan.md` | Analysis report on the Real-ESRGAN enhancement experiments |
+
+**Crop size analysis** (used to justify the ESRGAN strategy):
+
+| File | Description |
+|---|---|
+| `crop size analysis/check_crop_sizes.py` | Script to compute crop height statistics |
+| `crop size analysis/crop_height_distribution.png` | Histogram of crop heights in the test set |
+| `crop size analysis/crop_size_analysis.txt` | Full crop height distribution statistics |
+
+**Modified files:**
+
+| File | Description |
+|---|---|
+| `str.py` | Added `--use_esrgan` flag to apply ESRGAN to all crops before PARSeq recognition |
+| `str/parseq/train.py` | Added support for loading local `.ckpt` checkpoints as pretrained weights; truncates `pos_queries` to match current `max_label_length` |
+| `main.py` | STR inference command controlled by `upsampling` flag; training uses `lmdb_esrgan` |
+| `helpers.py` | Added `generate_crops_with_upsampling()` with optional ESRGAN; added pose fallback for unreliable keypoints |
+| `configuration.py` | Added `numbers_data_esrgan` path; updated `str_model` to point to ESRGAN-trained checkpoint |
+| `setup.py` | Minor updates for compatibility |
 
 ## Setup
 
