@@ -1,6 +1,33 @@
-Prerequisites: Conda is required for this project. Please ensure it is installed before proceeding.
-### Setup
-For Linux/Mac
+## Real-ESRGAN Enhancement Strategy
+
+### Overview
+
+Over 94% of SoccerNet player crops have a height below 64px. At this resolution, jersey numbers are often too blurry for reliable recognition.
+
+We explored using [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) — a blind super-resolution model that upscales images 4x while recovering sharp edges and fine details — to improve recognition accuracy.
+
+**Attempt 1 — Apply ESRGAN at inference only:**
+Apply Real-ESRGAN to crops at inference time, without retraining PARSeq. Result: accuracy **dropped to ~45%**. The pre-trained PARSeq model was fine-tuned on raw low-resolution crops, so feeding it ESRGAN-enhanced high-resolution images caused a training/inference distribution mismatch.
+
+**Attempt 2 — Apply ESRGAN consistently at both training and inference:**
+Re-process the entire training LMDB with Real-ESRGAN, re-fine-tune PARSeq on the enhanced images, then apply ESRGAN at inference (STR). Result: accuracy **recovered to ~85%**, with the distribution mismatch eliminated.
+
+### What Changed
+
+Compared to the original codebase, the following files were added or modified:
+
+| File | Description |
+|---|---|
+| `esrgan_lmdb.py` | New script — applies Real-ESRGAN to every image in the training LMDB and writes a new LMDB |
+| `real_esrgan_upsampler.py` | New module — wraps `RealESRGANer` for use in the inference pipeline |
+| `str.py` | Modified — added `--use_esrgan` flag to apply ESRGAN to crops before PARSeq recognition |
+| `str/parseq/train.py` | Modified — added support for loading local `.ckpt` checkpoints as pretrained weights |
+| `main.py` | Modified — STR inference command respects the `upsampling` flag; training uses `lmdb_esrgan` |
+| `configuration.py` | Modified — added `numbers_data_esrgan` path and updated `str_model` to ESRGAN-trained checkpoint |
+
+## Setup
+
+For Linux/Mac:
 ```
 cd jersey-number-pipeline
 source SetupEnv.sh
@@ -10,151 +37,180 @@ For Windows:
 cd jersey-number-pipeline
 SetupEnv.bat
 ```
-These scripts will download dataset, install dependencies and configure the repository. 
+These scripts will download dataset, install dependencies and configure the repository.
 
-Once setup is complete, run inference on the test set:
+## Download Pre-trained Models and Weights
+
+### 1. PARSeq fine-tuned checkpoint
+
+Download the fine-tuned PARSeq model from Google Drive and place it under `models/`:
+
+https://drive.google.com/file/d/1T7dzz32KywFApvuzDCrnmsa2_62Lxkr0/view?usp=drive_link
+
+### 2. Real-ESRGAN weights
+
+Download the official Real-ESRGAN x4 weights directly from the original repository:
+
+```bash
+wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth -P weights/
+```
+
+### 3. Verify
+
+After both downloads, confirm the following files exist:
+```
+models/parseq_soccer_esrgan.ckpt
+weights/RealESRGAN_x4plus.pth
+```
+
+## Inference
+
+Run inference on the test set:
 ```
 python3 main.py SoccerNet test
 ```
-### Tips
 
-- setup.py manages the conda virtual environments. If any modules are missing, you can refer to it and install them manually into the appropriate conda environment.
-- Use the pipeline action in main.py to resume from a specific step rather than rerunning the entire pipeline from scratch.
+---
 
-# A General Framework for Jersey Number Recognition in Sports
-Code, data, and model weights for paper  [A General Framework for Jersey Number Recognition in Sports](https://openaccess.thecvf.com/content/CVPR2024W/CVsports/papers/Koshkina_A_General_Framework_for_Jersey_Number_Recognition_in_Sports_Video_CVPRW_2024_paper.pdf) (Maria Koshkina, James H. Elder).
+## Training (SoccerNet with Real-ESRGAN) (optional)
 
-![Pipeline](docs/soccer_pipeline.png)
+This section describes how to reproduce the fine-tuned PARSeq model from scratch.
 
-Image-level detection, localization and recognition (experiments on Hockey dataset):
-  - legibility classifier
-  - scene text recognition for jersey numbers
+### Step 1: Prepare Real-ESRGAN-processed training data
 
-Tracklet-level detection, localization and recognition (experiments on SoccerNet dataset):
-  - occlusion/outlier removal using re-id features and fitting a Gaussian
-  - legibility classifier
-  - pose-guided RoI cropping
-  - scene text recognition for jersey numbers
-  - tracklet prediction consolidation
+Install dependencies in a separate environment and process the training LMDB:
 
-## Requirements:
-* pytorch 1.9.0
-* opencv
-
-## Setup:
-Clone current repo.
-Create conda environment and install requirements.
-Code makes use of the several repositories. Run 
-```
-python3 setup.py 
+```bash
+conda create -n esrgan python=3.9 -y
+conda activate esrgan
+pip install "numpy<2" realesrgan basicsr "torchvision<0.16" lmdb pillow tqdm
+python esrgan_lmdb.py --src_root data/SoccerNet/lmdb --dst_root data/SoccerNet/lmdb_esrgan --model_path weights/RealESRGAN_x4plus.pth
 ```
 
-to automatically clone, setup a separate conda environment for each and fetch models. 
+This applies Real-ESRGAN 4x upscaling to every image in the training LMDB and saves the results to `data/SoccerNet/lmdb_esrgan/`. This step can take several hours.
 
-Alternatively,  clone each of the following repo, setup conda environments for each following documentation in corresponding repo, and download models:
-### SAM:
-Should be in jersey-number-pipeline/sam. Repo: [https://github.com/davda54/sam](https://github.com/davda54/sam)
+### Step 2: Fine-tune PARSeq on ESRGAN-processed data
 
-### Centroid-Reid:
-Should be in jersey-number-pipeline/reid/centroids-reid. Repo: [https://github.com/mikwieczorek/centroids-reid](https://github.com/mikwieczorek/centroids-reid).
-Download [centroid-reid model weights](https://drive.google.com/file/d/1bSUNpvMfJkvCFOu-TK-o7iGY1p-9BxmO/view?usp=sharing) and place 
-them under jersey-number-pipeline/reid/centroids-reid/models.
-
-### ViTPose:
-Should be in jersey-number-pipeline/pose/ViTPose. Repo: [https://github.com/ViTAE-Transformer/ViTPose](https://github.com/ViTAE-Transformer/ViTPose).
-Download [ViTPose model weights](https://1drv.ms/u/s!AimBgYV7JjTlgShLMI-kkmvNfF_h?e=dEhGHe) and place 
-them under jersey-number-pipeline/pose/ViTPose/checkpoints/.
-
-### PARSeq:
-We include the version of the PARSeq code that was used to fine-tune the jersey number model as part of this repo. The original PARSeq repo is [https://github.com/baudm/parseq](https://github.com/baudm/parseq). Model weights should be downloaded and placed under jersey-number-pipeline/models/. 
-* [Original model weights](https://drive.google.com/file/d/1AK_GnM6pIYyfIf3tBYSKIyR3Fa3Z46Cx/view?usp=sharing)
-* [Hockey fine-tuned](https://drive.google.com/file/d/1FyM31xvSXFRusN0sZH0EWXoHwDfB9WIE/view?usp=sharing)
-* [SoccerNet fine-tuned](https://drive.google.com/file/d/1uRln22tlhneVt3P6MePmVxBWSLMsL3bm/view?usp=sharing)
-
-
-## Data:
-SoccerNet Jersey Number Recognition:
-[https://github.com/SoccerNet/sn-jersey](https://github.com/SoccerNet/sn-jersey)
-Download and save under /data subfolder. 
-
-* Weakly-labelled player images used to train legibility classifier can be downloaded [here](https://drive.google.com/file/d/1CmJfUmS_ZudgEiCT14b2CbyMA3nEO_uy/view?usp=sharing). 
-* Weakly-labelled jersey number crops used to fine-tune STR in LMDB format can be downloaded [here](https://drive.google.com/file/d/1PX8XDF3nNMZAvcjL6M5hurwX78ePAhSs/view?usp=sharing).
-
-Hockey (comprised of legibility dataset and jersey number dataset): 
-* Request access by contacting [Maria Koshkina](mailto:koshkina@hotmail.com?subject=Hockey). Extract under data/Hockey subfolder.
-
-### Trained Legibility Classifier Weights:
-Download and place under jersey-number-pipeline/models/.
-* [Hockey](https://drive.google.com/file/d/1RfxINtZ_wCNVF8iZsiMYuFOP7KMgqgDp/view?usp=sharing)
-* [SoccerNet](https://drive.google.com/file/d/18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw/view?usp=sharing)
-
-
-## Configuration:
-Update configuration.py if required to set custom path to data or dependencies. 
-
-## Inference:
-To run the full inference pipeline for SoccerNet:
-```
-python3 main.py SoccerNet test
-```
-To run legibility and jersey number inference for hockey:
-```
-python3 main.py Hockey test
-```
-Update actions in main.py actions list to run steps selectively.
-
-## Train (Hockey)
-Train legibility classifier:
-```
-python3 legibility_classifier.py --train --arch resnet34 --sam --data <new-dataset-directory> --trained_model_path ./experiments/hockey_legibility.pth
-```
-
-Fine-tune PARSeq STR for hockey number recognition:
-```
-python3 main.py Hockey train --train_str
-```
-
-Trained model will be under str/parseq/outputs
-
-## Train (SoccerNet)
-To train legibility classifier and jersey number recognition for SoccerNet, we first generate weakly labelled datasets and then use them to fine-tune.
-Weak labels are obtained by using models trained on hockey data.
-
-Train legibility classifier for it:
-```
-python3 legibility_classifier.py --finetune --arch resnet34 --sam --data <new-dataset-directory>  --full_val_dir
-<new-dataset-directory>/val --trained_model_path ./experiments/hockey_legibility.pth --new_trained_model_path ./experiments/sn_legibility.pth
-```
-
-Fine-tune PARSeq on weakly-labelled SoccerNet data:
-```
+```bash
+conda activate SoccerNet
+pip install pandas
 python3 main.py SoccerNet train --train_str
 ```
 
-Trained model will be under str/parseq/outputs.
+Checkpoints are saved under `str/parseq/outputs/`. Select the best checkpoint by `val_accuracy` and copy it to `models/`:
 
-## Citation
-```
-@InProceedings{Koshkina_2024_CVPR,
-    author    = {Koshkina, Maria and Elder, James H.},
-    title     = {A General Framework for Jersey Number Recognition in Sports Video},
-    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops},
-    month     = {June},
-    year      = {2024},
-    pages     = {3235-3244}
-}
+```bash
+cp str/parseq/outputs/<run_dir>/checkpoints/<best>.ckpt models/parseq_soccer_esrgan.ckpt
 ```
 
-## Acknowledgements
-We would like to thank authors of the following repositories: 
-* [PARSeq](https://github.com/baudm/parseq)
-* [Centroid-Reid](https://github.com/mikwieczorek/centroids-reid)
-* [ViTPose](https://github.com/ViTAE-Transformer/ViTPose)
-* [SoccerNet](https://github.com/SoccerNet/sn-jersey)
-* [McGill Hockey Player Tracking Dataset](https://github.com/grant81/hockeyTrackingDataset)
-* [SAM](https://github.com/davda54/sam)
+### Step 3: Update configuration
 
-## License
-[![License](https://i.creativecommons.org/l/by-nc/3.0/88x31.png)](http://creativecommons.org/licenses/by-nc/3.0/)
+In `configuration.py`, set:
+```python
+'str_model': 'models/parseq_soccer_esrgan.ckpt',
+```
 
-This work is licensed under a [Creative Commons Attribution-NonCommercial 3.0 Unported License](http://creativecommons.org/licenses/by-nc/3.0/).
+### Step 4: Run inference
+
+```bash
+python3 main.py SoccerNet test
+```
+
+Real-ESRGAN is applied to all crops at inference time before PARSeq recognition, matching the training distribution.
+
+
+## Troubleshooting
+
+### `RuntimeError: Numpy is not available` or NumPy 2.x conflicts
+
+Several packages in this project require NumPy < 2. If you see this error, downgrade NumPy first before reinstalling torch:
+
+```bash
+conda activate SoccerNet
+pip install "numpy<2"
+pip install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 \
+    -f https://download.pytorch.org/whl/cu113/torch_stable.html
+```
+
+For the `esrgan` environment:
+```bash
+conda activate esrgan
+pip install "numpy<2" "torchvision<0.16"
+```
+
+---
+
+### `ModuleNotFoundError: No module named 'basicsr'` during STR inference
+
+`basicsr` and `realesrgan` must be installed in the `parseq2` conda environment (used for STR inference), not just the `esrgan` environment:
+
+```bash
+conda run -n parseq2 pip install "numpy<2" realesrgan basicsr "torchvision<0.16"
+```
+
+---
+
+### `ModuleNotFoundError: No module named 'pkg_resources'`
+
+Install or downgrade setuptools:
+
+```bash
+pip install setuptools==59.5.0
+```
+
+---
+
+### Hydra error: `ValueError: Error parsing override` with checkpoint path containing `=`
+
+PARSeq checkpoint filenames often contain `=` (e.g. `epoch=17-step=1854-val_accuracy=95.8104.ckpt`), which Hydra interprets as a key-value separator. Copy the checkpoint to a name without `=`:
+
+```bash
+cp str/parseq/outputs/<run_dir>/checkpoints/<best>.ckpt models/parseq_soccer_esrgan.ckpt
+```
+
+Then set `str_model` in `configuration.py` to point to the new path.
+
+---
+
+### `torchvision.transforms.functional_tensor` not found
+
+This error appears when `torchvision >= 0.16` is installed in the `esrgan` environment. Downgrade:
+
+```bash
+conda activate esrgan
+pip install "torchvision<0.16"
+```
+
+---
+
+### ViTPose killed / out of memory
+
+ViTPose processes all images in the dataset and is memory-intensive. If the process is killed:
+- Ensure no other large jobs are running on the same GPU
+- The pose step (105k+ images) takes approximately 2–3 hours on a single GPU — this is expected
+
+---
+
+### `pandas` not found when running training
+
+```bash
+conda run -n SoccerNet pip install pandas
+```
+
+---
+
+### LMDB data not downloaded
+
+The weakly-labelled jersey number crops LMDB can be downloaded with `gdown`:
+
+```bash
+pip install gdown
+gdown <file_id>  # see data download links in the Data section below
+```
+
+Extract with Python if `unzip` is unavailable:
+```python
+import zipfile
+with zipfile.ZipFile('lmdb.zip', 'r') as z:
+    z.extractall('data/SoccerNet/')
+```
