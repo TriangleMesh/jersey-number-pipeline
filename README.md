@@ -1,3 +1,49 @@
+
+### STR backends: PARSeq and CLIP4STR
+
+The repository now supports two interchangeable STR backends:
+- `parseq` (existing behavior, default)
+- `clip4str` (new)
+
+Both backends write the same output schema, so `combine` and `eval` stages can be reused without changes.
+
+#### Switch backend globally
+Edit `configuration.py`:
+- `str_backend = 'parseq'` or `str_backend = 'clip4str'`
+
+Optional CLIP4STR settings in `configuration.py`:
+- `clip4str_model_name`
+- `clip4str_pretrained`
+- `clip4str_max_number`
+- `clip4str_prompt_template`
+- `dataset['SoccerNet']['clip4str_model']` (optional checkpoint path)
+
+#### Switch backend per run
+Use the runtime override flag:
+
+```bash
+python main.py SoccerNet test --str_backend clip4str
+python main.py SoccerNet test --str_backend parseq
+```
+
+#### Recommended comparison flow
+If crops are already generated, run only:
+- `str`
+- `combine`
+- `eval`
+
+This is the default action list currently configured in `main.py` for SoccerNet test runs.
+
+#### Environment notes
+- `main.py` runs STR through `conda run -n parseq2 ...`.
+- Keep PARSeq-compatible torch versions in `parseq2` (torch 1.13.1 + cu117 in this repo setup).
+- For CLIP4STR in the same env, install a pinned OpenCLIP build without dependency upgrades:
+
+```bash
+pip install open_clip_torch==2.24.0 --no-deps
+```
+
+
 Prerequisites: Conda is required for this project. Please ensure it is installed before proceeding.
 ### Setup
 For Linux/Mac
