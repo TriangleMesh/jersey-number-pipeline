@@ -1,160 +1,205 @@
-Prerequisites: Conda is required for this project. Please ensure it is installed before proceeding.
-### Setup
-For Linux/Mac
-```
-cd jersey-number-pipeline
-source SetupEnv.sh
-```
-For Windows:
-```
-cd jersey-number-pipeline
-SetupEnv.bat
-```
-These scripts will download dataset, install dependencies and configure the repository. 
 
-Once setup is complete, run inference on the test set:
-```
-python3 main.py SoccerNet test
-```
-### Tips
-
-- setup.py manages the conda virtual environments. If any modules are missing, you can refer to it and install them manually into the appropriate conda environment.
-- Use the pipeline action in main.py to resume from a specific step rather than rerunning the entire pipeline from scratch.
-
-# A General Framework for Jersey Number Recognition in Sports
-Code, data, and model weights for paper  [A General Framework for Jersey Number Recognition in Sports](https://openaccess.thecvf.com/content/CVPR2024W/CVsports/papers/Koshkina_A_General_Framework_for_Jersey_Number_Recognition_in_Sports_Video_CVPRW_2024_paper.pdf) (Maria Koshkina, James H. Elder).
-
-![Pipeline](docs/soccer_pipeline.png)
-
-Image-level detection, localization and recognition (experiments on Hockey dataset):
-  - legibility classifier
-  - scene text recognition for jersey numbers
-
-Tracklet-level detection, localization and recognition (experiments on SoccerNet dataset):
-  - occlusion/outlier removal using re-id features and fitting a Gaussian
-  - legibility classifier
-  - pose-guided RoI cropping
-  - scene text recognition for jersey numbers
-  - tracklet prediction consolidation
-
-## Requirements:
-* pytorch 1.9.0
-* opencv
-
-## Setup:
-Clone current repo.
-Create conda environment and install requirements.
-Code makes use of the several repositories. Run 
-```
-python3 setup.py 
-```
-
-to automatically clone, setup a separate conda environment for each and fetch models. 
-
-Alternatively,  clone each of the following repo, setup conda environments for each following documentation in corresponding repo, and download models:
-### SAM:
-Should be in jersey-number-pipeline/sam. Repo: [https://github.com/davda54/sam](https://github.com/davda54/sam)
-
-### Centroid-Reid:
-Should be in jersey-number-pipeline/reid/centroids-reid. Repo: [https://github.com/mikwieczorek/centroids-reid](https://github.com/mikwieczorek/centroids-reid).
-Download [centroid-reid model weights](https://drive.google.com/file/d/1bSUNpvMfJkvCFOu-TK-o7iGY1p-9BxmO/view?usp=sharing) and place 
-them under jersey-number-pipeline/reid/centroids-reid/models.
-
-### ViTPose:
-Should be in jersey-number-pipeline/pose/ViTPose. Repo: [https://github.com/ViTAE-Transformer/ViTPose](https://github.com/ViTAE-Transformer/ViTPose).
-Download [ViTPose model weights](https://1drv.ms/u/s!AimBgYV7JjTlgShLMI-kkmvNfF_h?e=dEhGHe) and place 
-them under jersey-number-pipeline/pose/ViTPose/checkpoints/.
-
-### PARSeq:
-We include the version of the PARSeq code that was used to fine-tune the jersey number model as part of this repo. The original PARSeq repo is [https://github.com/baudm/parseq](https://github.com/baudm/parseq). Model weights should be downloaded and placed under jersey-number-pipeline/models/. 
-* [Original model weights](https://drive.google.com/file/d/1AK_GnM6pIYyfIf3tBYSKIyR3Fa3Z46Cx/view?usp=sharing)
-* [Hockey fine-tuned](https://drive.google.com/file/d/1FyM31xvSXFRusN0sZH0EWXoHwDfB9WIE/view?usp=sharing)
-* [SoccerNet fine-tuned](https://drive.google.com/file/d/1uRln22tlhneVt3P6MePmVxBWSLMsL3bm/view?usp=sharing)
+Tiny Crop Upscaling & Pipeline Stability Guide
 
 
-## Data:
-SoccerNet Jersey Number Recognition:
-[https://github.com/SoccerNet/sn-jersey](https://github.com/SoccerNet/sn-jersey)
-Download and save under /data subfolder. 
+This branch focuses on stabilizing the SoccerNet jersey number pipeline and introducing a lightweight OCR-side improvement.
 
-* Weakly-labelled player images used to train legibility classifier can be downloaded [here](https://drive.google.com/file/d/1CmJfUmS_ZudgEiCT14b2CbyMA3nEO_uy/view?usp=sharing). 
-* Weakly-labelled jersey number crops used to fine-tune STR in LMDB format can be downloaded [here](https://drive.google.com/file/d/1PX8XDF3nNMZAvcjL6M5hurwX78ePAhSs/view?usp=sharing).
+Baseline pipeline:
 
-Hockey (comprised of legibility dataset and jersey number dataset): 
-* Request access by contacting [Maria Koshkina](mailto:koshkina@hotmail.com?subject=Hockey). Extract under data/Hockey subfolder.
+ReID → Legibility → Pose → Crop → PARSeq → Voting
 
-### Trained Legibility Classifier Weights:
-Download and place under jersey-number-pipeline/models/.
-* [Hockey](https://drive.google.com/file/d/1RfxINtZ_wCNVF8iZsiMYuFOP7KMgqgDp/view?usp=sharing)
-* [SoccerNet](https://drive.google.com/file/d/18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw/view?usp=sharing)
+The goal was:
+	•	reliably reproduce baseline results
+	•	introduce a small, controlled improvement at the OCR stage
+
+Final accepted change:
+	•	Gated tiny crop upscaling before PARSeq
+
+⸻
+
+What Changed
+
+File	Change
+str.py	Added gated tiny upscaling before OCR inference
+main.py	Replaced unstable conda run calls with fixed interpreter paths
+centroid_reid.py, str.py	Added PyTorch load compatibility patch
+legibility_classifier.py	Fixed SAM import path
+.gitignore	Cleaned output + checkpoint artifacts
 
 
-## Configuration:
-Update configuration.py if required to set custom path to data or dependencies. 
+⸻
 
-## Inference:
-To run the full inference pipeline for SoccerNet:
-```
-python3 main.py SoccerNet test
-```
-To run legibility and jersey number inference for hockey:
-```
-python3 main.py Hockey test
-```
-Update actions in main.py actions list to run steps selectively.
+Key Improvement: Gated Tiny Upscaling
 
-## Train (Hockey)
-Train legibility classifier:
-```
-python3 legibility_classifier.py --train --arch resnet34 --sam --data <new-dataset-directory> --trained_model_path ./experiments/hockey_legibility.pth
-```
+Implementation (str.py)
 
-Fine-tune PARSeq STR for hockey number recognition:
-```
-python3 main.py Hockey train --train_str
-```
+def maybe_upscale_tiny_crop(image, min_h=64, scale_factor=2):
+    w, h = image.size
+    if h >= min_h:
+        return image
 
-Trained model will be under str/parseq/outputs
+    new_w = int(w * scale_factor)
+    new_h = int(h * scale_factor)
+    image = image.resize((new_w, new_h), Image.BICUBIC)
+    image = image.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=2))
+    return image
 
-## Train (SoccerNet)
-To train legibility classifier and jersey number recognition for SoccerNet, we first generate weakly labelled datasets and then use them to fine-tune.
-Weak labels are obtained by using models trained on hockey data.
+Applied before OCR:
 
-Train legibility classifier for it:
-```
-python3 legibility_classifier.py --finetune --arch resnet34 --sam --data <new-dataset-directory>  --full_val_dir
-<new-dataset-directory>/val --trained_model_path ./experiments/hockey_legibility.pth --new_trained_model_path ./experiments/sn_legibility.pth
-```
+image = maybe_upscale_tiny_crop(image, min_h=64, scale_factor=2)
 
-Fine-tune PARSeq on weakly-labelled SoccerNet data:
-```
-python3 main.py SoccerNet train --train_str
-```
 
-Trained model will be under str/parseq/outputs.
+⸻
 
-## Citation
-```
-@InProceedings{Koshkina_2024_CVPR,
-    author    = {Koshkina, Maria and Elder, James H.},
-    title     = {A General Framework for Jersey Number Recognition in Sports Video},
-    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops},
-    month     = {June},
-    year      = {2024},
-    pages     = {3235-3244}
-}
-```
+Motivation
+	•	PARSeq struggles with very small crops (<64 px)
+	•	Digits become compressed → strokes indistinguishable
+	•	Simple upscaling increases effective resolution without heavy models
 
-## Acknowledgements
-We would like to thank authors of the following repositories: 
-* [PARSeq](https://github.com/baudm/parseq)
-* [Centroid-Reid](https://github.com/mikwieczorek/centroids-reid)
-* [ViTPose](https://github.com/ViTAE-Transformer/ViTPose)
-* [SoccerNet](https://github.com/SoccerNet/sn-jersey)
-* [McGill Hockey Player Tracking Dataset](https://github.com/grant81/hockeyTrackingDataset)
-* [SAM](https://github.com/davda54/sam)
+⸻
 
-## License
-[![License](https://i.creativecommons.org/l/by-nc/3.0/88x31.png)](http://creativecommons.org/licenses/by-nc/3.0/)
+Result
 
-This work is licensed under a [Creative Commons Attribution-NonCommercial 3.0 Unported License](http://creativecommons.org/licenses/by-nc/3.0/).
+Setting	Accuracy
+Baseline	86.95%
++ Tiny Upscaling	87.20%
+
+Improvement: +0.25
+
+⸻
+
+Critical Reproduction Notes (IMPORTANT)
+
+1. Clear Cached Outputs
+
+Pipeline skips stages if outputs exist
+
+Before running:
+
+rm -rf out/SoccerNetResults/
+
+Otherwise:
+	•	results may not reflect code changes
+	•	pipeline appears correct but is using stale outputs
+
+⸻
+
+2. Use Correct Environments
+
+Separate environments were used:
+	•	jersey → main pipeline
+	•	parseq2 → OCR
+
+Common failure:
+	•	running scripts in wrong env → import errors
+
+⸻
+
+3. Avoid conda run
+
+Replaced:
+
+conda run -n parseq2 python str.py ...
+
+With:
+
+/workspace/miniconda3/envs/parseq2/bin/python str.py ...
+
+Reason:
+	•	conda run was unreliable in RunPod
+	•	sometimes used wrong environment silently
+
+⸻
+
+4. PyTorch Compatibility Patch
+
+_orig_torch_load = torch.load
+
+def _torch_load_compat(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _orig_torch_load(*args, **kwargs)
+
+torch.load = _torch_load_compat
+
+Fixes checkpoint loading issues in newer PyTorch versions.
+
+⸻
+
+Major Issues Encountered
+
+Environment
+	•	No CUDA on local machine → could not run full pipeline locally
+	•	RunPod environments inconsistent across sessions
+	•	Multiple conda envs caused execution mistakes
+
+⸻
+
+Dependencies
+
+Frequent issues with:
+	•	torchvision mismatches
+	•	cv2 missing
+	•	pandas missing
+	•	timm warnings
+	•	SAM import path mismatch
+
+⸻
+
+Pipeline
+	•	Dataset structure had to match expected layout exactly
+	•	Manual data setup prone to errors
+	•	Cached outputs caused misleading results
+
+⸻
+
+Critical Bug: Confidence Format
+	•	Some stages returned float
+	•	Others expected list
+
+This broke:
+	•	helpers.py aggregation
+	•	fallback logic
+
+Fix:
+	•	standardized confidence format before post-processing
+
+⸻
+
+Removed / Abandoned Work
+
+Real-ESRGAN
+
+Attempted for super-resolution.
+
+Rejected due to:
+	•	dependency conflicts (basicsr, realesrgan)
+	•	slow inference
+	•	unstable integration
+
+⸻
+
+Fallback Scan
+
+Attempted for low-confidence predictions.
+
+Rejected due to:
+	•	inconsistent confidence handling
+	•	pipeline instability
+	•	complex integration
+
+
+Key Takeaways
+	•	Most effort went into engineering/debugging, not modeling
+	•	Simple preprocessing > complex unstable modules
+	•	Cache handling is critical in multi-stage pipelines
+	•	Data format consistency is essential
+	•	Environment reproducibility is a major challenge
+
+Final Result
+	•	Baseline reproduced successfully
+	•	One stable improvement added:
+
+Gated tiny upscaling (<64 px crops)
+
+Final accuracy:
+	•	86.95% → 87.20%
