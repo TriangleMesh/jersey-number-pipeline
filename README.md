@@ -180,7 +180,7 @@ Each team member's work is on a separate branch with its own README containing d
 |---|---|---|---|
 | `main` | — | Original baseline pipeline | 86–87% |
 | `data-augmentation-aarav` | [Aarav Gosalia] | Data augmentation + PARSeq fine-tuning optimization | **87.9%** |
-| `real-esrgan` | [Qingyin Qian] | Real-ESRGAN super-resolution preprocessing | 45% |
+| `real-esrgan` | [Qingyin Qian] | Real-ESRGAN super-resolution preprocessing | 45%/85.5% |
 | `runpod-ishaan` | [Ishaan Singh Yadav] | Bicubic gated resize preprocessing | 87.2% |
 | `raunak-khanna` | [Raunak Khanna] | - | - |
 
