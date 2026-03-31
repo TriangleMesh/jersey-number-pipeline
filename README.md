@@ -3,8 +3,13 @@
 ### Overview
 
 Over 94% of SoccerNet player crops have a height below 64px. At this resolution, jersey numbers are often too blurry for reliable recognition.
+<img width="710" height="277" alt="图片" src="https://github.com/user-attachments/assets/2758df6f-b1c6-4206-876b-ba6b52536e87" />
+
 
 We explored using [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) — a blind super-resolution model that upscales images 4x while recovering sharp edges and fine details — to improve recognition accuracy.
+
+<img width="328" height="243" alt="图片" src="https://github.com/user-attachments/assets/a2bdbab4-521a-48bb-9a62-c066e17c7666" />
+
 
 **Attempt 1 — Apply ESRGAN at inference only:**
 Apply Real-ESRGAN to crops at inference time, without retraining PARSeq. Result: accuracy **dropped to ~45%**. The pre-trained PARSeq model was fine-tuned on raw low-resolution crops, so feeding it ESRGAN-enhanced high-resolution images caused a training/inference distribution mismatch. See [report_real_esrgan.md](report_real_esrgan.md) for a detailed analysis.
