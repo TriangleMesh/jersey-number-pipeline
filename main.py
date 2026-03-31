@@ -345,8 +345,21 @@ def soccer_net_pipeline(args):
             print("Predict numbers")
             image_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'])
 
-            command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['SoccerNet']['str_model']}\
-                --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file}"
+            str_backend = args.str_backend if args.str_backend else getattr(config, 'str_backend', 'parseq')
+            checkpoint = config.dataset['SoccerNet']['str_model']
+            extra_clip_args = ''
+            if str_backend == 'clip4str':
+                clip_checkpoint = config.dataset['SoccerNet'].get('clip4str_model', '')
+                if clip_checkpoint:
+                    checkpoint = clip_checkpoint
+                    extra_clip_args += f" --clip_checkpoint {clip_checkpoint}"
+                extra_clip_args += f" --clip_model_name {config.clip4str_model_name}"
+                extra_clip_args += f" --clip_pretrained {config.clip4str_pretrained}"
+                extra_clip_args += f" --clip_max_number {config.clip4str_max_number}"
+                extra_clip_args += f" --clip_prompt_template \"{config.clip4str_prompt_template}\""
+
+            command = f"conda run --live-stream -n {config.str_env} python str.py  {checkpoint}\
+                --backend={str_backend} --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file}{extra_clip_args}"
             print(f'Run cmd [{command}]')
             success = os.system(command) == 0
             print("Done predict numbers")
@@ -386,6 +399,8 @@ if __name__ == '__main__':
     parser.add_argument('dataset', help="Options: 'SoccerNet', 'Hockey'")
     parser.add_argument('part', help="Options: 'test', 'val', 'train', 'challenge")
     parser.add_argument('--train_str', action='store_true', default=False, help="Run training of jersey number recognition")
+    parser.add_argument('--str_backend', choices=['parseq', 'clip4str'], default=None,
+                        help='Override STR backend for this run (default: configuration.py str_backend)')
     args = parser.parse_args()
 
     if not args.train_str:

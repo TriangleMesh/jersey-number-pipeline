@@ -38,5 +38,20 @@
         "task_name": "Evaluate accuracy",
         "start_time": "2026-03-30T19:28:40.440978",
         "elapsed_time": 0.0009911060333251953
+    },
+    {
+        "task_name": "Predict numbers",
+        "start_time": "2026-03-30T19:50:27.260362",
+        "elapsed_time": 924.5695872306824
+    },
+    {
+        "task_name": "Combine tracklet results",
+        "start_time": "2026-03-30T20:05:51.829949",
+        "elapsed_time": 3.1262741088867188
+    },
+    {
+        "task_name": "Evaluate accuracy",
+        "start_time": "2026-03-30T20:05:54.963235",
+        "elapsed_time": 0.000997304916381836
     }
 ]

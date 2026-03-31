@@ -136,6 +136,8 @@ def setup_str(root):
             os.system(f"make torch-{cuda_ver}")
         os.system(f"conda run --live-stream -n {env_name} conda install --name {env_name} pip")
         os.system(f"conda run --live-stream -n {env_name} pip install -r requirements/core.{cuda_ver}.txt -e .[train,test]")
+        # Keep PARSeq torch pins intact by installing a compatible CLIP package without dependency upgrades.
+        os.system(f"conda run --live-stream -n {env_name} pip install open_clip_torch==2.24.0 --no-deps")
 
     os.chdir(root)
     print(f'setup_str(): ======================= end =======================')

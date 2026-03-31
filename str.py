@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import math
 import string
 import sys
 from dataclasses import dataclass
@@ -37,6 +38,142 @@ from PIL import Image
 import os
 import json
 import csv
+
+
+def build_clip_label_space(max_number: int) -> List[str]:
+    """Build candidate jersey labels for CLIP retrieval."""
+    labels = []
+    for number in range(max_number + 1):
+        as_plain = str(number)
+        labels.append(as_plain)
+        if number < 10:
+            labels.append(f'0{number}')
+    # Keep insertion order but remove duplicates.
+    return list(dict.fromkeys(labels))
+
+
+def clip_promptify(prompt_template: str, labels: List[str]) -> List[str]:
+    return [prompt_template.format(label) for label in labels]
+
+
+def clip_probs_to_parseq_like_outputs(labels: List[str], probs: List[float], logits: List[float], pred_label: str):
+    """Convert CLIP class probabilities to PARSeq-like output keys used by helpers.py."""
+    # PARSeq output uses 3 tokens and 11 classes (digits 0-9 + EOS).
+    eos_idx = 10
+    token_probs = [[0.0] * 11 for _ in range(3)]
+
+    for label, prob in zip(labels, probs):
+        if not label:
+            continue
+        if len(label) == 1:
+            d0 = int(label)
+            token_probs[0][d0] += prob
+            token_probs[1][eos_idx] += prob
+        else:
+            d0 = int(label[0])
+            d1 = int(label[1])
+            token_probs[0][d0] += prob
+            token_probs[1][d1] += prob
+
+    token_probs[2][eos_idx] = 1.0
+
+    # Normalize first two token distributions to be robust against numeric drift.
+    for token_idx in (0, 1):
+        total = sum(token_probs[token_idx])
+        if total > 0:
+            token_probs[token_idx] = [x / total for x in token_probs[token_idx]]
+
+    pred_digits = pred_label if len(pred_label) > 1 else f"{pred_label}{eos_idx}"
+    c0 = token_probs[0][int(pred_digits[0])]
+    c1 = token_probs[1][eos_idx] if len(pred_label) == 1 else token_probs[1][int(pred_digits[1])]
+    confidence = [float(c0), float(c1), 1.0]
+
+    # Keep shape compatible with existing calibration/aggregation utilities.
+    token_logits = []
+    for row in token_probs:
+        token_logits.append([float(math.log(max(x, 1e-8))) for x in row])
+
+    return {
+        'confidence': confidence,
+        'raw': [[float(x) for x in row] for row in token_probs],
+        'logits': token_logits,
+    }
+
+
+class CLIP4STRAdapter:
+    def __init__(self, args):
+        try:
+            import open_clip
+        except ImportError as e:
+            raise ImportError(
+                "CLIP4STR backend requires open_clip_torch. "
+                "Install it in parseq2: pip install open_clip_torch"
+            ) from e
+
+        self.device = args.device
+        self.model_name = args.clip_model_name
+        self.labels = build_clip_label_space(args.clip_max_number)
+
+        model, _, preprocess = open_clip.create_model_and_transforms(
+            args.clip_model_name,
+            pretrained=args.clip_pretrained,
+            device=args.device,
+        )
+        self.model = model.eval().to(args.device)
+        self.preprocess = preprocess
+        self.tokenizer = open_clip.get_tokenizer(args.clip_model_name)
+
+        if args.clip_checkpoint:
+            state = torch.load(args.clip_checkpoint, map_location='cpu')
+            if isinstance(state, dict) and 'state_dict' in state:
+                state = state['state_dict']
+            missing, unexpected = self.model.load_state_dict(state, strict=False)
+            print(f"Loaded CLIP4STR checkpoint [{args.clip_checkpoint}] with missing={len(missing)}, unexpected={len(unexpected)}")
+
+        prompts = clip_promptify(args.clip_prompt_template, self.labels)
+        text_tokens = self.tokenizer(prompts).to(args.device)
+        with torch.no_grad():
+            text_features = self.model.encode_text(text_tokens)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        self.text_features = text_features
+        self.logit_scale = args.clip_logit_scale
+
+    @torch.inference_mode()
+    def predict_image(self, image: Image.Image):
+        image_tensor = self.preprocess(image).unsqueeze(0).to(self.device)
+        image_features = self.model.encode_image(image_tensor)
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+
+        class_logits = self.logit_scale * image_features @ self.text_features.T
+        class_probs = class_logits.softmax(dim=-1).squeeze(0)
+
+        top_idx = int(torch.argmax(class_probs).item())
+        pred_label = self.labels[top_idx]
+        probs = class_probs.detach().cpu().tolist()
+        logits = class_logits.squeeze(0).detach().cpu().tolist()
+
+        parseq_like = clip_probs_to_parseq_like_outputs(self.labels, probs, logits, pred_label)
+        return pred_label, parseq_like
+
+
+def run_inference_clip4str(adapter: CLIP4STRAdapter, data_root, result_file):
+    file_dir = os.path.join(data_root, 'imgs')
+    filenames = os.listdir(file_dir)
+    filenames.sort()
+    results = {}
+
+    for filename in tqdm(filenames):
+        image = Image.open(os.path.join(file_dir, filename)).convert('RGB')
+        pred_label, parseq_like = adapter.predict_image(image)
+        results[filename] = {
+            'label': pred_label,
+            'confidence': parseq_like['confidence'],
+            'raw': parseq_like['raw'],
+            'logits': parseq_like['logits'],
+        }
+
+    with open(result_file, 'w') as f:
+        json.dump(results, f)
 
 @dataclass
 class Result:
@@ -236,6 +373,8 @@ class _ECELoss(nn.Module):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
+    parser.add_argument('--backend', choices=['parseq', 'clip4str'], default='parseq',
+                        help='STR backend to run')
     parser.add_argument('--data_root', default='data')
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=4)
@@ -250,7 +389,30 @@ def main():
     parser.add_argument('--tune_temperature', action='store_true', default=False,
                         help='Find best t-scale')
     parser.add_argument('--result_file', default='outputs/preds.json')
+    parser.add_argument('--clip_model_name', default='ViT-B-32',
+                        help='OpenCLIP model name used by CLIP4STR backend')
+    parser.add_argument('--clip_pretrained', default='laion2b_s34b_b79k',
+                        help='OpenCLIP pretrained tag used by CLIP4STR backend')
+    parser.add_argument('--clip_checkpoint', default='',
+                        help='Optional CLIP4STR checkpoint to load on top of pretrained weights')
+    parser.add_argument('--clip_max_number', type=int, default=99,
+                        help='Maximum jersey number class for CLIP4STR retrieval')
+    parser.add_argument('--clip_prompt_template',
+                        default='a photo of a sports jersey with number {}',
+                        help='Prompt template used to build CLIP text candidates')
+    parser.add_argument('--clip_logit_scale', type=float, default=100.0,
+                        help='Scale factor for CLIP image-text similarity logits')
     args, unknown = parser.parse_known_args()
+
+    if args.backend == 'clip4str':
+        if not args.inference:
+            raise ValueError('CLIP4STR backend currently supports inference mode only. Add --inference.')
+        if args.tune_temperature:
+            raise ValueError('Temperature scaling is only supported for PARSeq backend.')
+        clip_model = CLIP4STRAdapter(args)
+        run_inference_clip4str(clip_model, args.data_root, args.result_file)
+        return
+
     kwargs = parse_model_args(unknown)
 
     charset_test = string.digits # + string.ascii_lowercase
