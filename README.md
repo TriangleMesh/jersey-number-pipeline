@@ -210,7 +210,7 @@ So the plan is:
 3. Compare:
 
    * % correct jersey IDs (if ground truth available)
-   * # of abstains (-1) vs wrong confident guesses
+   * of abstains (-1) vs wrong confident guesses
    * consistency across frames/tracklets
 4. Keep v2 only if it improves metrics or reduces obvious errors
 
