@@ -468,6 +468,11 @@ if __name__ == '__main__':
         model_ft = model_ft.to(device)
         criterion = nn.BCELoss()
         if args.sam:
+            if SAM is None:
+                raise ModuleNotFoundError(
+                    "Optional dependency 'sam2' is required for --sam training. "
+                    "Run setup.py (or clone https://github.com/davda54/sam into ./sam2)."
+                )
             # Observe that all parameters are being optimized
             base_optimizer = torch.optim.SGD
             optimizer_ft = SAM(model_ft.parameters(), base_optimizer, lr=0.001, momentum=0.9)
