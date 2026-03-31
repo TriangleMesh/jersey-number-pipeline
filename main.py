@@ -396,11 +396,11 @@ if __name__ == '__main__':
 
     if not args.train_str:
         if args.dataset == 'SoccerNet':
-            actions = {"soccer_ball_filter": False,
-                       "feat": False,
-                       "filter": False,
-                       "legible": False,
-                       "legible_eval": False,
+            actions = {"soccer_ball_filter": True,
+                       "feat": True,
+                       "filter": True,
+                       "legible": True,
+                       "legible_eval": True,
                        "pose": True,
                        "crops": True,
                        "str": True,
