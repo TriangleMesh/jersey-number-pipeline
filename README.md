@@ -1,3 +1,42 @@
+
+### TensorRT-Accelerated STR Inference
+
+TensorRT is integrated for the STR (PARSeq) stage via a `tensorrt` backend in `str.py` and exposed in the main pipeline.
+
+Install TensorRT support in the `parseq2` environment:
+
+```bash
+conda activate parseq2
+pip install -U torch-tensorrt
+pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0
+```
+
+The pipeline now uses a stable TensorRT compile path for STR with fixed-length decode (`max_length=2`) and static batch profile (`batch=1`) to avoid PARSeq conversion failures.
+
+Run the full SoccerNet pipeline with TensorRT-enabled STR:
+
+```bash
+python main.py SoccerNet test --str_backend tensorrt --trt_precision fp16
+```
+
+Useful tuning flags:
+
+```bash
+python main.py SoccerNet test --str_backend tensorrt --trt_precision fp16 --trt_min_batch 1 --trt_opt_batch 1 --trt_max_batch 1 --trt_workspace_size_mb 2048
+```
+
+Direct STR-only command:
+
+```bash
+conda run --live-stream -n parseq2 python str.py models/parseq_epoch=24-step=2575-val_accuracy=95.6044-val_NED=96.3255.ckpt --data_root=out/SoccerNetResults/crops --batch_size=1 --inference --result_file out/SoccerNetResults/jersey_id_results.json --backend tensorrt --trt_precision fp16 --trt_min_batch 1 --trt_opt_batch 1 --trt_max_batch 1 --trt_workspace_size_mb 2048 --trt_max_length 2
+```
+
+Notes:
+- TensorRT improves runtime/throughput and often lowers latency; it does not usually improve model accuracy by itself.
+- On this setup, STR runtime improved from about 20 minutes to about 13 minutes after TensorRT integration.
+- First run includes compilation time; subsequent runs in the same process are faster.
+- If `torch_tensorrt` is missing or CUDA is unavailable, use `--str_backend torch`.
+
 # A General Framework for Jersey Number Recognition in Sports
 
 Code, data, and model weights for paper [A General Framework for Jersey Number Recognition in Sports](https://openaccess.thecvf.com/content/CVPR2024W/CVsports/papers/Koshkina_A_General_Framework_for_Jersey_Number_Recognition_in_Sports_Video_CVPRW_2024_paper.pdf) (Maria Koshkina, James H. Elder).
@@ -88,6 +127,7 @@ python main.py SoccerNet test
 ```
 
 This runs the full pipeline and prints the final accuracy against the test set ground truth.
+
 
 ### Selective Step Execution
 

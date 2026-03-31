@@ -1,0 +1,22 @@
+[
+    {
+        "task_name": "Predict numbers",
+        "start_time": "2026-03-30T20:17:44.722504",
+        "elapsed_time": 5.822573900222778
+    },
+    {
+        "task_name": "Predict numbers",
+        "start_time": "2026-03-30T20:53:15.874496",
+        "elapsed_time": 868.2753584384918
+    },
+    {
+        "task_name": "Combine tracklet results",
+        "start_time": "2026-03-30T21:07:44.158831",
+        "elapsed_time": 3.729193925857544
+    },
+    {
+        "task_name": "Evaluate accuracy",
+        "start_time": "2026-03-30T21:07:47.895006",
+        "elapsed_time": 0.013964176177978516
+    }
+]

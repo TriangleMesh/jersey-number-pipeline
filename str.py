@@ -19,6 +19,9 @@ import string
 import sys
 from dataclasses import dataclass
 from typing import List
+from typing import Optional
+import os
+import copy
 
 ROOT = './str/parseq/'
 sys.path.append(str(ROOT))  # add ROOT to PATH
@@ -34,9 +37,63 @@ from strhub.data.module import SceneTextDataModule
 from strhub.models.utils import load_from_checkpoint, parse_model_args
 
 from PIL import Image
-import os
 import json
 import csv
+
+
+def build_tensorrt_model(model, img_size, args):
+    if (not str(args.device).startswith('cuda')) or not torch.cuda.is_available():
+        raise RuntimeError('TensorRT backend requires CUDA device. Use --device=cuda and a CUDA-capable GPU.')
+
+    try:
+        import torch_tensorrt
+    except ImportError as exc:
+        raise RuntimeError(
+            'TensorRT backend requested but torch_tensorrt is not installed in the current environment.'
+        ) from exc
+
+    height, width = int(img_size[0]), int(img_size[1])
+    min_batch = max(1, int(args.trt_min_batch))
+    opt_batch = max(min_batch, int(args.trt_opt_batch))
+    max_batch = max(opt_batch, int(args.trt_max_batch))
+    compile_batch = opt_batch
+
+    use_fp16 = args.trt_precision.lower() == 'fp16'
+    enabled_precisions = {torch.float32, torch.float16} if use_fp16 else {torch.float32}
+
+    class FixedLengthPARSeqWrapper(torch.nn.Module):
+        def __init__(self, parseq_model, max_length):
+            super().__init__()
+            self.parseq_model = parseq_model
+            self.max_length = int(max_length)
+
+        def forward(self, images):
+            # Fixed max_length disables PARSeq's data-dependent early-stop branch.
+            return self.parseq_model(images, max_length=self.max_length)
+
+    compile_max_length = max(1, int(args.trt_max_length))
+    trt_base_model = copy.deepcopy(model)
+    if hasattr(trt_base_model, 'decode_ar'):
+        trt_base_model.decode_ar = False
+    if hasattr(trt_base_model, 'refine_iters'):
+        trt_base_model.refine_iters = 0
+    trt_compile_model = FixedLengthPARSeqWrapper(trt_base_model, compile_max_length).eval().to('cuda')
+
+    with torch.inference_mode():
+        compiled = torch_tensorrt.compile(
+            trt_compile_model,
+            ir='dynamo',
+            inputs=[
+                torch_tensorrt.Input(
+                    shape=(compile_batch, 3, height, width),
+                    dtype=torch.float32,
+                )
+            ],
+            enabled_precisions=enabled_precisions,
+            workspace_size=int(args.trt_workspace_size_mb) * (1 << 20),
+            truncate_long_and_double=True,
+        )
+    return compiled
 
 @dataclass
 class Result:
@@ -71,7 +128,7 @@ def print_results_table(results: List[Result], file=None):
           f'| {c.confidence:>10.2f} | {c.label_length:>12.2f} |', file=file)
 
 
-def run_inference(model, data_root, result_file, img_size):
+def run_inference(model, data_root, result_file, img_size, trt_model: Optional[torch.nn.Module] = None):
     # load images one by one, save paths and result
     file_dir = os.path.join(data_root, 'imgs')
     filenames = os.listdir(file_dir)
@@ -82,7 +139,12 @@ def run_inference(model, data_root, result_file, img_size):
         transform = SceneTextDataModule.get_transform(img_size)
         image = transform(image)
         image = image.unsqueeze(0)
-        logits = model.forward(image.to(model.device))
+        device = model.device
+        image = image.to(device)
+        if trt_model is None:
+            logits = model.forward(image)
+        else:
+            logits = trt_model(image)
         #convert to 3 by 10
         probs_full = logits[:,:3,:11].softmax(-1)
         preds, probs = model.tokenizer.decode(probs_full)
@@ -246,12 +308,29 @@ def main():
     parser.add_argument('--custom', action='store_true', default=True, help='Evaluate on custom personal datasets')
     parser.add_argument('--rotation', type=int, default=0, help='Angle of rotation (counter clockwise) in degrees.')
     parser.add_argument('--device', default='cuda')
+    parser.add_argument('--backend', default='torch', choices=['torch', 'tensorrt'],
+                        help='Inference backend for STR model execution')
+    parser.add_argument('--trt_precision', default='fp16', choices=['fp16', 'fp32'],
+                        help='TensorRT precision mode when --backend=tensorrt')
+    parser.add_argument('--trt_min_batch', type=int, default=1,
+                        help='Minimum TensorRT optimization profile batch size')
+    parser.add_argument('--trt_opt_batch', type=int, default=1,
+                        help='Optimal TensorRT optimization profile batch size')
+    parser.add_argument('--trt_max_batch', type=int, default=1,
+                        help='Maximum TensorRT optimization profile batch size')
+    parser.add_argument('--trt_workspace_size_mb', type=int, default=2048,
+                        help='TensorRT workspace size in MB')
+    parser.add_argument('--trt_max_length', type=int, default=2,
+                        help='Fixed maximum decoded text length used for TensorRT compilation')
     parser.add_argument('--inference', action='store_true', default=False, help='Run inference and store prediction results')
     parser.add_argument('--tune_temperature', action='store_true', default=False,
                         help='Find best t-scale')
     parser.add_argument('--result_file', default='outputs/preds.json')
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
+
+    # PyTorch>=2.6 defaults to weights_only=True, which breaks older Lightning checkpoints.
+    os.environ.setdefault('TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD', '1')
 
     charset_test = string.digits # + string.ascii_lowercase
     if args.cased:
@@ -264,8 +343,14 @@ def main():
     model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     hp = model.hparams
 
+    trt_model = None
+    if args.backend == 'tensorrt':
+        print('Compiling PARSeq model with TensorRT...')
+        trt_model = build_tensorrt_model(model, hp.img_size, args)
+        print('TensorRT compilation finished.')
+
     if args.inference:
-        run_inference(model, args.data_root, args.result_file, hp.img_size)
+        run_inference(model, args.data_root, args.result_file, hp.img_size, trt_model=trt_model)
         exit()
     if args.tune_temperature:
         set_temperature(model, args.data_root, hp.img_size)

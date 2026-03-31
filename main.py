@@ -209,7 +209,15 @@ def hockey_pipeline(args):
         current_dir = os.getcwd()
         data_root = os.path.join(current_dir, config.dataset['Hockey']['root_dir'], config.dataset['Hockey']['numbers_data'])
         command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['Hockey']['str_model']}\
-            --data_root={data_root}"
+            --data_root={data_root} --backend {args.str_backend}"
+        if args.str_backend == 'tensorrt':
+            command += (
+                f" --trt_precision={args.trt_precision}"
+                f" --trt_min_batch={args.trt_min_batch}"
+                f" --trt_opt_batch={args.trt_opt_batch}"
+                f" --trt_max_batch={args.trt_max_batch}"
+                f" --trt_workspace_size_mb={args.trt_workspace_size_mb}"
+            )
         success = os.system(command) == 0
         print("Done predict numbers")
 
@@ -346,7 +354,15 @@ def soccer_net_pipeline(args):
             image_dir = os.path.join(config.dataset['SoccerNet']['working_dir'], config.dataset['SoccerNet'][args.part]['crops_folder'])
 
             command = f"conda run --live-stream -n {config.str_env} python str.py  {config.dataset['SoccerNet']['str_model']}\
-                --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file}"
+                --data_root={image_dir} --batch_size=1 --inference --result_file {str_result_file} --backend {args.str_backend}"
+            if args.str_backend == 'tensorrt':
+                command += (
+                    f" --trt_precision={args.trt_precision}"
+                    f" --trt_min_batch={args.trt_min_batch}"
+                    f" --trt_opt_batch={args.trt_opt_batch}"
+                    f" --trt_max_batch={args.trt_max_batch}"
+                    f" --trt_workspace_size_mb={args.trt_workspace_size_mb}"
+                )
             print(f'Run cmd [{command}]')
             success = os.system(command) == 0
             print("Done predict numbers")
@@ -386,17 +402,28 @@ if __name__ == '__main__':
     parser.add_argument('dataset', help="Options: 'SoccerNet', 'Hockey'")
     parser.add_argument('part', help="Options: 'test', 'val', 'train', 'challenge")
     parser.add_argument('--train_str', action='store_true', default=False, help="Run training of jersey number recognition")
+    parser.add_argument('--str_backend', default='torch', help="STR backend: 'torch' (default) or 'tensorrt'")
+    parser.add_argument('--trt_precision', default='fp16', choices=['fp16', 'fp32'],
+                        help='TensorRT precision mode for STR backend')
+    parser.add_argument('--trt_min_batch', type=int, default=1,
+                        help='TensorRT min batch for STR backend')
+    parser.add_argument('--trt_opt_batch', type=int, default=1,
+                        help='TensorRT opt batch for STR backend')
+    parser.add_argument('--trt_max_batch', type=int, default=1,
+                        help='TensorRT max batch for STR backend')
+    parser.add_argument('--trt_workspace_size_mb', type=int, default=2048,
+                        help='TensorRT workspace size in MB for STR backend')
     args = parser.parse_args()
 
     if not args.train_str:
         if args.dataset == 'SoccerNet':
-            actions = {"soccer_ball_filter": True,
-                       "feat": True,
-                       "filter": True,
-                       "legible": True,
+            actions = {"soccer_ball_filter": False,
+                       "feat": False,
+                       "filter": False,
+                       "legible": False,
                        "legible_eval": False,
-                       "pose": True,
-                       "crops": True,
+                       "pose": False,
+                       "crops": False,
                        "str": True,
                        "combine": True,
                        "eval": True}
