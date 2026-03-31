@@ -1,160 +1,257 @@
-Prerequisites: Conda is required for this project. Please ensure it is installed before proceeding.
-### Setup
-For Linux/Mac
-```
-cd jersey-number-pipeline
-source SetupEnv.sh
-```
-For Windows:
-```
-cd jersey-number-pipeline
-SetupEnv.bat
-```
-These scripts will download dataset, install dependencies and configure the repository. 
 
-Once setup is complete, run inference on the test set:
-```
-python3 main.py SoccerNet test
-```
-### Tips
+# Jersey Number Pipeline — Raunak Run Plan (SoccerNet)
 
-- setup.py manages the conda virtual environments. If any modules are missing, you can refer to it and install them manually into the appropriate conda environment.
-- Use the pipeline action in main.py to resume from a specific step rather than rerunning the entire pipeline from scratch.
+## Goal 
+I’m trying to run the full **jersey-number pipeline** end-to-end on the **SoccerNet dataset** (train/test/challenge), so that:
 
-# A General Framework for Jersey Number Recognition in Sports
-Code, data, and model weights for paper  [A General Framework for Jersey Number Recognition in Sports](https://openaccess.thecvf.com/content/CVPR2024W/CVsports/papers/Koshkina_A_General_Framework_for_Jersey_Number_Recognition_in_Sports_Video_CVPRW_2024_paper.pdf) (Maria Koshkina, James H. Elder).
+1. The pipeline completes without crashes (models + data paths + env all correct)
+2. It outputs **jersey ID predictions** for tracklets (per-player/tracklet)
+3. I can compare accuracy / quality of the outputs vs the original baseline
+4. I can package the changes into a clean PR (tracklet consolidation + robustness)
 
-![Pipeline](docs/soccer_pipeline.png)
+---
 
-Image-level detection, localization and recognition (experiments on Hockey dataset):
-  - legibility classifier
-  - scene text recognition for jersey numbers
+## High-level pipeline (what the code does)
+For a given SoccerNet split (`train`, `test`, `challenge`):
 
-Tracklet-level detection, localization and recognition (experiments on SoccerNet dataset):
-  - occlusion/outlier removal using re-id features and fitting a Gaussian
-  - legibility classifier
-  - pose-guided RoI cropping
-  - scene text recognition for jersey numbers
-  - tracklet prediction consolidation
+1. **Load tracklets/images** from `data/SoccerNet/<split>/images`
+2. **Detect/ignore soccer balls** (filter step)
+3. **Generate ReID features** for tracklets (centroids-reid model)
+4. **Run STR/OCR** on jersey crops to get digit predictions + confidences
+5. **Combine / consolidate predictions per tracklet**
+6. Write results to an output JSON (jersey id result file)
 
-## Requirements:
-* pytorch 1.9.0
-* opencv
+---
 
-## Setup:
-Clone current repo.
-Create conda environment and install requirements.
-Code makes use of the several repositories. Run 
-```
-python3 setup.py 
-```
+## What I changed (my contribution / direction)
+### 1) Combine step uses my tracklet consolidation
+Instead of directly using the old `helpers.process_jersey_id_predictions(...)`,
+the combine step calls my improved function:
+- `tracklet_consolidation.process_jersey_id_predictions_v2(...)`
 
-to automatically clone, setup a separate conda environment for each and fetch models. 
+### 2) Better consolidation strategy (intent)
+The goal is to reduce noisy OCR/STR outputs by:
+- normalizing common OCR mistakes (like O→0, I→1, etc.)
+- using confidence-weighted voting / aggregation
+- allowing abstain (-1) when evidence is weak (optional)
+- fallback to legacy helper logic if v2 parsing fails (optional)
 
-Alternatively,  clone each of the following repo, setup conda environments for each following documentation in corresponding repo, and download models:
-### SAM:
-Should be in jersey-number-pipeline/sam. Repo: [https://github.com/davda54/sam](https://github.com/davda54/sam)
+> NOTE: This is **not guaranteed** to improve accuracy in every case.
+> It’s meant to be more robust and should be validated by running + comparing outputs.
 
-### Centroid-Reid:
-Should be in jersey-number-pipeline/reid/centroids-reid. Repo: [https://github.com/mikwieczorek/centroids-reid](https://github.com/mikwieczorek/centroids-reid).
-Download [centroid-reid model weights](https://drive.google.com/file/d/1bSUNpvMfJkvCFOu-TK-o7iGY1p-9BxmO/view?usp=sharing) and place 
-them under jersey-number-pipeline/reid/centroids-reid/models.
+---
 
-### ViTPose:
-Should be in jersey-number-pipeline/pose/ViTPose. Repo: [https://github.com/ViTAE-Transformer/ViTPose](https://github.com/ViTAE-Transformer/ViTPose).
-Download [ViTPose model weights](https://1drv.ms/u/s!AimBgYV7JjTlgShLMI-kkmvNfF_h?e=dEhGHe) and place 
-them under jersey-number-pipeline/pose/ViTPose/checkpoints/.
+## Environment: how I’m running it
+### Why GPU?
+This pipeline is heavy (models + lots of images). My Mac is not enough.
+So I run on a TensorDock GPU VM.
 
-### PARSeq:
-We include the version of the PARSeq code that was used to fine-tune the jersey number model as part of this repo. The original PARSeq repo is [https://github.com/baudm/parseq](https://github.com/baudm/parseq). Model weights should be downloaded and placed under jersey-number-pipeline/models/. 
-* [Original model weights](https://drive.google.com/file/d/1AK_GnM6pIYyfIf3tBYSKIyR3Fa3Z46Cx/view?usp=sharing)
-* [Hockey fine-tuned](https://drive.google.com/file/d/1FyM31xvSXFRusN0sZH0EWXoHwDfB9WIE/view?usp=sharing)
-* [SoccerNet fine-tuned](https://drive.google.com/file/d/1uRln22tlhneVt3P6MePmVxBWSLMsL3bm/view?usp=sharing)
+### Recommended setup (TensorDock)
+- GPU: **V100 32GB** is usually enough (A100 is faster but more expensive)
+- OS: **Ubuntu 22.04 LTS** (NVIDIA driver image preferred)
+- Use `tmux` so runs survive SSH disconnects.
 
+---
 
-## Data:
-SoccerNet Jersey Number Recognition:
-[https://github.com/SoccerNet/sn-jersey](https://github.com/SoccerNet/sn-jersey)
-Download and save under /data subfolder. 
+## One-time setup on the VM (important)
+### 1) SSH in
+From Mac:
+```bash
+ssh -i ~/.ssh/tensordock_ed25519 user@<VM_IP>
+````
 
-* Weakly-labelled player images used to train legibility classifier can be downloaded [here](https://drive.google.com/file/d/1CmJfUmS_ZudgEiCT14b2CbyMA3nEO_uy/view?usp=sharing). 
-* Weakly-labelled jersey number crops used to fine-tune STR in LMDB format can be downloaded [here](https://drive.google.com/file/d/1PX8XDF3nNMZAvcjL6M5hurwX78ePAhSs/view?usp=sharing).
+### 2) Use tmux (so the run doesn’t die if VS Code/SSH disconnects)
 
-Hockey (comprised of legibility dataset and jersey number dataset): 
-* Request access by contacting [Maria Koshkina](mailto:koshkina@hotmail.com?subject=Hockey). Extract under data/Hockey subfolder.
-
-### Trained Legibility Classifier Weights:
-Download and place under jersey-number-pipeline/models/.
-* [Hockey](https://drive.google.com/file/d/1RfxINtZ_wCNVF8iZsiMYuFOP7KMgqgDp/view?usp=sharing)
-* [SoccerNet](https://drive.google.com/file/d/18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw/view?usp=sharing)
-
-
-## Configuration:
-Update configuration.py if required to set custom path to data or dependencies. 
-
-## Inference:
-To run the full inference pipeline for SoccerNet:
-```
-python3 main.py SoccerNet test
-```
-To run legibility and jersey number inference for hockey:
-```
-python3 main.py Hockey test
-```
-Update actions in main.py actions list to run steps selectively.
-
-## Train (Hockey)
-Train legibility classifier:
-```
-python3 legibility_classifier.py --train --arch resnet34 --sam --data <new-dataset-directory> --trained_model_path ./experiments/hockey_legibility.pth
+```bash
+tmux new -s jersey
+# detach: Ctrl+b then d
+# later reattach:
+tmux attach -t jersey
 ```
 
-Fine-tune PARSeq STR for hockey number recognition:
-```
-python3 main.py Hockey train --train_str
-```
+### 3) Go to repo
 
-Trained model will be under str/parseq/outputs
-
-## Train (SoccerNet)
-To train legibility classifier and jersey number recognition for SoccerNet, we first generate weakly labelled datasets and then use them to fine-tune.
-Weak labels are obtained by using models trained on hockey data.
-
-Train legibility classifier for it:
-```
-python3 legibility_classifier.py --finetune --arch resnet34 --sam --data <new-dataset-directory>  --full_val_dir
-<new-dataset-directory>/val --trained_model_path ./experiments/hockey_legibility.pth --new_trained_model_path ./experiments/sn_legibility.pth
+```bash
+cd ~/jersey-number-pipeline
+git status
 ```
 
-Fine-tune PARSeq on weakly-labelled SoccerNet data:
-```
-python3 main.py SoccerNet train --train_str
-```
+### 4) Activate conda env
 
-Trained model will be under str/parseq/outputs.
-
-## Citation
-```
-@InProceedings{Koshkina_2024_CVPR,
-    author    = {Koshkina, Maria and Elder, James H.},
-    title     = {A General Framework for Jersey Number Recognition in Sports Video},
-    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops},
-    month     = {June},
-    year      = {2024},
-    pages     = {3235-3244}
-}
+```bash
+conda activate SoccerNet
 ```
 
-## Acknowledgements
-We would like to thank authors of the following repositories: 
-* [PARSeq](https://github.com/baudm/parseq)
-* [Centroid-Reid](https://github.com/mikwieczorek/centroids-reid)
-* [ViTPose](https://github.com/ViTAE-Transformer/ViTPose)
-* [SoccerNet](https://github.com/SoccerNet/sn-jersey)
-* [McGill Hockey Player Tracking Dataset](https://github.com/grant81/hockeyTrackingDataset)
-* [SAM](https://github.com/davda54/sam)
+### 5) Confirm GPU is visible
 
-## License
-[![License](https://i.creativecommons.org/l/by-nc/3.0/88x31.png)](http://creativecommons.org/licenses/by-nc/3.0/)
+```bash
+nvidia-smi
+python -c "import torch; print(torch.cuda.is_available())"
+```
 
-This work is licensed under a [Creative Commons Attribution-NonCommercial 3.0 Unported License](http://creativecommons.org/licenses/by-nc/3.0/).
+---
+
+## Dataset layout (what the code expects vs what we actually have)
+
+The code expects:
+
+* `data/SoccerNet/train/images`
+* `data/SoccerNet/test/images`
+* `data/SoccerNet/val/images`
+
+But sometimes the dataset has:
+
+* `train/images`, `test/images`, `challenge/images`
+  and **no `val/`**.
+
+### Fix: map `val/images` → `challenge/images`
+
+```bash
+rm -rf data/SoccerNet/val
+mkdir -p data/SoccerNet/val
+ln -s ../challenge/images data/SoccerNet/val/images
+ls data/SoccerNet/val/images | head
+```
+
+---
+
+## Model files (common failure)
+
+A frequent failure is missing ReID checkpoint, e.g.:
+`market1501_resnet50_256_128_epoch_120.ckpt`
+
+### Check it exists:
+
+```bash
+ls -lh reid/centroids-reid/models/market1501_resnet50_256_128_epoch_120.ckpt
+```
+
+If missing, download it (repo scripts may do this, or download manually if needed).
+
+---
+
+## Running the pipeline (my standard run commands)
+
+### Run SoccerNet test split (log everything)
+
+```bash
+python main.py SoccerNet test 2>&1 | tee test_run.log
+```
+
+### Watch progress
+
+```bash
+tail -f test_run.log
+```
+
+### Run train split (bigger / slower)
+
+```bash
+python main.py SoccerNet train 2>&1 | tee train_run.log
+```
+
+---
+
+## Outputs (what I expect to get)
+
+After a successful run, I expect:
+
+* Output folders like `out/SoccerNetResults/<split>/...`
+* A jersey id result JSON file (location depends on configuration)
+* Logs showing:
+
+  * “determine soccer ball”
+  * “generate features”
+  * “classifying legibility”
+  * “combine tracklet results”
+  * “writing jersey_id_result”
+
+---
+
+## Common issues + quick fixes
+
+### 1) “Broken pipe” / “connection closed”
+
+This is usually **SSH/VS Code disconnect**, not pipeline failure.
+Fix: run inside `tmux`.
+
+### 2) Missing `val/images`
+
+Fix: symlink val → challenge (see above).
+
+### 3) Missing model `.ckpt`
+
+Fix: download the checkpoint into:
+`reid/centroids-reid/models/`
+
+### 4) KeyError like `KeyError: 'jersey_id_result'`
+
+This means `configuration.py` is missing a config key for the split.
+Fix: add a `jersey_id_result` entry for the split you’re running.
+
+### 5) Conda channel “Terms of Service not accepted”
+
+Fix example:
+
+```bash
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+```
+
+---
+
+## Accuracy plan (how I’ll prove it’s better)
+
+I can’t “guarantee” best accuracy without measurement.
+So the plan is:
+
+1. Run baseline method (old helper consolidation) on a split
+2. Run v2 consolidation on the same split
+3. Compare:
+
+   * % correct jersey IDs (if ground truth available)
+   * # of abstains (-1) vs wrong confident guesses
+   * consistency across frames/tracklets
+4. Keep v2 only if it improves metrics or reduces obvious errors
+
+---
+
+## Collaboration plan (when to ask a friend to test)
+
+Ask a friend to test **after**:
+
+* pipeline runs end-to-end on my VM at least once
+* model + dataset paths are stable
+* output JSON is produced correctly
+
+What I want them to test:
+
+* fresh clone → setup → run on their machine/VM
+* confirm they can reproduce the same run and outputs
+* confirm no missing-file surprises
+
+---
+
+## Current status (checkpoint)
+
+- Repo runs on TensorDock VM
+- Dataset paths fixed (val → challenge mapping)
+- eID checkpoint downloaded + found
+- pipe line starts + progresses through feature generation
+- Need stable long-running session via tmux + confirm final output JSON
+- Need clean accuracy comparison vs baseline consolidation
+
+---
+
+## Next steps (what I do next)
+
+1. Run `SoccerNet test` fully to completion (in tmux)
+2. Confirm output JSON and log contains “combine step finished”
+3. Run baseline vs v2 consolidation comparison
+4. Write a short PR description explaining:
+
+   * why consolidation changed
+   * how it was tested
+   * results/observations
+
+
