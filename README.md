@@ -182,7 +182,8 @@ Each team member's work is on a separate branch with its own README containing d
 | `data-augmentation-aarav` | [Aarav Gosalia] | Data augmentation + PARSeq fine-tuning optimization | **87.9%** |
 | `real-esrgan-qingyun` | [Qingyin Qian] | Real-ESRGAN super-resolution preprocessing | Attempt 1: 45%; Attempt 2: 85.5% |
 | `runpod-ishaan` | [Ishaan Singh Yadav] | Bicubic gated resize preprocessing | 87.2% |
-| `raunak-khanna` | [Raunak Khanna] | - | - |
+| `raunak-khanna` | [Raunak Khanna] | Updated consolidation method (not yet tested) | - |
+| `clip4str-implementation-bao-pham` | [Bao Pham] | Replaced PARSeq with CLIP4STR + TensorRT optimization | 87.5% |
 
 > **To review a branch:** `git checkout <branch-name>` and refer to that branch's `README.md` for full instructions and working demo.
 
